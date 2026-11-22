@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saint-Gilles parcelle par parcelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: control bar on top, map and ranked list side by side, quartier sheet below; stacks to one column on phones. */
+:root{
+  --bg:#f4f5f2; --surface:#ffffff; --ink:#1d2421; --muted:#5f6b66; --line:#d9ddd8;
+  --accent:#0f5c63; --nodata:#e3e5e1;
+  --c1:#edf7e6; --c2:#b5e0b7; --c3:#69bfae; --c4:#2b8e9c; --c5:#1b4f7a;
+  --font-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121715; --surface:#1a201e; --ink:#e7ece9; --muted:#9aa6a1; --line:#2f3835;
+    --accent:#5cc4c9; --nodata:#2a312e;
+    --c1:#203a35; --c2:#2f6157; --c3:#3f8f80; --c4:#6dbfa6; --c5:#c4ecc0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121715; --surface:#1a201e; --ink:#e7ece9; --muted:#9aa6a1; --line:#2f3835;
+  --accent:#5cc4c9; --nodata:#2a312e;
+  --c1:#203a35; --c2:#2f6157; --c3:#3f8f80; --c4:#6dbfa6; --c5:#c4ecc0;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px;display:grid;gap:16px}
+header h1{font-family:var(--font-display);font-weight:700;font-size:clamp(22px,3.2vw,30px);margin:0;text-wrap:balance;letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--muted);max-width:68ch}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px}
+.controls label{font-size:13px;color:var(--muted)}
+select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;flex:1 1 320px;min-width:0}
+button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.chip{font-size:13px;padding:5px 10px;border-radius:999px}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card h2{font-family:var(--font-display);font-size:18px;margin:0 0 2px;text-wrap:balance}
+.meta{color:var(--muted);font-size:13px;margin:0 0 10px}
+svg{width:100%;height:auto;display:block}
+.q{stroke:var(--surface);stroke-width:1.2;cursor:pointer;transition:opacity .15s}
+.q:hover{opacity:.85}
+.q.sel{stroke:var(--ink);stroke-width:2.6}
+.lbl{font-size:10px;fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3px;pointer-events:none;font-weight:600}
+.lbl.out{font-weight:400;fill:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid var(--line)}
+.rank{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.rank li{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:13px;cursor:pointer;padding:3px 4px;border-radius:6px}
+.rank li:hover,.rank li.sel{background:var(--bg)}
+.rank .name{display:flex;flex-direction:column;min-width:0}
+.rank .name b{font-weight:600;overflow-wrap:anywhere}
+.bar{height:6px;border-radius:3px;background:var(--accent);margin-top:3px}
+.rank .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.tag{font-size:11px;color:var(--accent);font-weight:600}
+.sheet h2{margin-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.grp h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;font-size:13px;padding:4px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.row:hover{color:var(--accent)}
+.row .v{font-variant-numeric:tabular-nums;font-weight:600;text-align:right;white-space:nowrap}
+.row small{color:var(--muted)}
+.note{font-size:12px;color:var(--muted);max-width:90ch}
+.old{color:#b25a1f;font-weight:600}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs a{padding:8px 14px;border-radius:8px 8px 0 0;color:var(--muted);text-decoration:none;font-weight:600;border:1px solid transparent;border-bottom:none;margin-bottom:-1px}
+.tabs a[aria-selected="true"]{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.search{position:relative}
+#q{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+#qres{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:320px;overflow:auto}
+#qres li{padding:9px 10px;border-radius:6px;cursor:pointer;font-size:14px}
+#qres li[aria-selected="true"],#qres li:hover{background:var(--bg)}
+#qres small{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.addr{font-size:16px;font-weight:600;margin:2px 0 0}
+.tray{position:sticky;bottom:10px;z-index:20;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.tray[hidden]{display:none}
+.trayChips{display:flex;gap:6px;flex-wrap:wrap;flex:1 1 auto;min-width:0}
+.tchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 10px;max-width:100%}
+.tchip b{color:#e0157a}
+.tchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
+.tchip button{border:none;background:none;padding:0 4px;font-size:14px;color:var(--muted)}
+.primary{background:var(--accent);color:var(--surface);border-color:var(--accent);font-weight:600}
+.primary:disabled{opacity:.5}
+.cmpBtn{margin:6px 0 4px;font-size:13px}
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(10,14,12,.45);display:grid;place-items:center;padding:12px}
+.overlay[hidden]{display:none}
+.sheet2{background:var(--surface);color:var(--ink);border-radius:12px;max-width:980px;width:100%;max-height:92vh;overflow:hidden;padding:14px 16px}
+.sheetHead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sheetHead h2{font-family:var(--font-display);margin:0;font-size:20px}
+.cmpWrap{overflow-x:auto}
+#cmpTable{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+#cmpTable th,#cmpTable td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+#cmpTable thead th{position:sticky;top:0;background:var(--surface);font-size:14px}
+#cmpTable td.rl{color:var(--muted);min-width:130px}
+#cmpTable tr.grp td{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:14px;border-bottom:none}
+#cmpTable td.win{font-weight:700}
+.best{color:#1f8a4c;font-size:12px}
+.colhead small{display:block;color:var(--muted);font-weight:400;font-family:ui-monospace,Consolas,monospace;font-size:11px}
+.colhead button{margin-top:4px;font-size:12px;padding:3px 8px}
+@media (max-width:640px){#cmpTable td.rl{min-width:110px} .tchip span{max-width:120px}}
+.phead{position:sticky;top:0;z-index:4;background:var(--surface);margin:0 -14px;padding:8px 14px;border-bottom:1px solid var(--line)}
+.phead .addr{margin:0}.phead .capa{margin:2px 0 0}
+@media (max-width:640px){.phead{margin:0 -12px;padding:8px 12px}}
+.sheet2{display:flex;flex-direction:column}
+.cmpWrap{overflow:auto;max-height:calc(92vh - 110px);min-height:0}
+#cmpTable thead th{z-index:2}
+#cmpTable td.rl{position:sticky;left:0;background:var(--surface);z-index:1}
+#cmpTable thead th:first-child{position:sticky;left:0;z-index:3}
+#psel{display:none}
+@media (max-width:640px){
+  #pchips{display:none} #psel{display:block;flex:1 1 100%}
+  header p{display:none}
+  #pmap{height:62vh!important;min-height:340px}
+  .wrap{padding:12px 12px 32px;gap:12px}
+  .card{padding:12px}
+  .tomap{display:inline-flex!important}
+}
+.tomap{display:none;margin:0 0 8px;font-size:13px}
+.cgrp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);align-self:center;margin-left:6px}
+.cgrp:first-child{margin-left:0}
+.permits{display:grid;gap:8px;margin-top:6px}
+.pm{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;display:grid;gap:2px}
+.pm small{color:var(--muted)}
+.pmh{display:flex;justify-content:space-between;font-weight:600;font-variant-numeric:tabular-nums}
+.st{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--bg);color:var(--muted)}
+.st.ok{background:#dcefd8;color:#1f5f2c}.st.ko{background:#f6d9d4;color:#8a2a1c}
+.toggle{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink)!important;cursor:pointer}
+.mapbox{position:relative;border-radius:8px;overflow:hidden;background:var(--bg);touch-action:none}
+#pmap{width:100%;height:520px;display:block;cursor:grab}
+@media (max-width:820px){#pmap{height:420px}}
+.zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px}
+.zoom button:disabled{opacity:.4;cursor:default}
+.zoom button{width:34px;height:34px;padding:0;background:var(--surface);font-size:18px;line-height:1}
+.loading{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:var(--muted)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;font-size:14px;margin:8px 0}
+.kv span:nth-child(even){font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;color:#1d2421}
+.capa{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--muted)}
+.pcard h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 2px}
+@media (prefers-reduced-motion: reduce){.q{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Saint-Gilles parcelle par parcelle</h1>
+    <p>Bruit, pollution, sol, inondation, bâti, proximités et permis de chaque parcelle (Bruxelles Environnement, UrbIS, Bruxelles Mobilité, urban.brussels) et 89 indicateurs par quartier (IBSA, Monitoring des quartiers), pour comparer des biens avant un achat.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Vue">
+    <a href="#parcelles" role="tab" id="tab-parcelles">Parcelles</a>
+    <a href="#quartiers" role="tab" id="tab-quartiers">Quartiers · 89 indicateurs</a>
+  </nav>
+
+  <div id="view-parcelles" hidden>
+    <div class="search" role="search">
+      <label for="q" class="sr">Rechercher une adresse</label>
+      <input id="q" type="search" autocomplete="off" placeholder="Rechercher une adresse (ex. Victoire 12)" aria-controls="qres">
+      <ul id="qres" role="listbox" hidden></ul>
+    </div>
+    <div class="controls" role="group" aria-label="Choix de la couche parcellaire">
+      <div class="chips" id="pchips"></div>
+      <select id="psel" aria-label="Carte à afficher"></select>
+      <label class="toggle"><input type="checkbox" id="streets" checked> Noms des rues</label>
+      <label class="toggle"><input type="checkbox" id="calm"> Seulement les parcelles avec un côté calme (jour &lt; 50 dB et nuit &lt; 45 dB côté calme)</label>
+    </div>
+    <div class="main">
+      <section class="card" aria-labelledby="t-pmap">
+        <h2 id="t-pmap"></h2>
+        <p class="meta" id="m-pmap"></p>
+        <div class="mapbox">
+          <canvas id="pmap" aria-label="Carte des parcelles de Saint-Gilles"></canvas>
+          <div class="zoom"><button id="zin" aria-label="Zoomer">+</button><button id="zout" aria-label="Dézoomer">−</button><button id="zsel" aria-label="Centrer sur la parcelle sélectionnée" title="Centrer sur la parcelle sélectionnée" disabled>◎</button><button id="zreset" aria-label="Vue de toute la commune" title="Vue de toute la commune">⟲</button></div>
+          <p class="loading" id="ploading">Chargement des 7 700 parcelles…</p>
+        </div>
+        <div class="legend" id="plegend"></div>
+        <p class="note">Glissez pour déplacer, molette ou pincement pour zoomer, touchez une parcelle pour sa fiche.</p>
+      </section>
+      <section class="card" aria-live="polite">
+        <h2 id="t-pcard">Fiche parcelle</h2>
+        <button class="tomap" id="tomap">↑ Revenir à la carte</button>
+        <div id="pcard"><p class="meta">Touchez une parcelle sur la carte.</p></div>
+      </section>
+    </div>
+    <p class="note">Black carbon : champ « bulk » de la couche Bruxelles Environnement (non documenté, valeurs cohérentes avec des µg/m³), pour la rue la plus exposée à moins de 20 m. Distances à vol d’oiseau depuis le centre de la parcelle. État du sol : définitions des catégories selon l’ordonnance sol ; vérifiez toujours la fiche technique. Bâti : calculs sur UrbIS Parcelles et Bâtiments (2D), à 0,5 m près ; l’orientation du jardin va du centre du bâti vers le centre de l’espace libre. Source bruit : Bruxelles Environnement, cartes stratégiques multi-exposition 2021 (route, rail, tram, avion), classes de 5 dB modélisées. 2021 est une année marquée par la crise sanitaire : les niveaux réels sont probablement un peu plus élevés. « Côté rue » = classe la plus bruyante qui touche la parcelle ; « côté calme » = la moins bruyante. Repères OMS pour le bruit routier : 53 dB sur 24 h (Lden), 45 dB la nuit (Ln).</p>
+  </div>
+
+  <div id="cmpTray" class="tray" hidden>
+    <div id="cmpChips" class="trayChips"></div>
+    <button id="cmpGo" class="primary">Comparer</button>
+  </div>
+  <div id="cmpOverlay" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="cmpTitle">
+    <div class="sheet2">
+      <div class="sheetHead"><h2 id="cmpTitle">Comparaison de parcelles</h2><button id="cmpClose" aria-label="Fermer la comparaison">✕</button></div>
+      <p class="meta"><span class="best">●</span> = valeur la plus favorable pour un logement (moins de bruit, plus d’espace libre, plus proche…). Les lignes sans point sont informatives.</p>
+      <div class="cmpWrap"><table id="cmpTable"></table></div>
+    </div>
+  </div>
+
+  <div id="view-quartiers">
+  <div class="controls" role="group" aria-label="Choix de l'indicateur">
+    <div class="chips" id="chips"></div>
+    <button id="prev" aria-label="Indicateur précédent">←</button>
+    <select id="ind" aria-label="Indicateur"></select>
+    <button id="next" aria-label="Indicateur suivant">→</button>
+  </div>
+
+  <div class="main">
+    <section class="card" aria-labelledby="t-map">
+      <h2 id="t-map"></h2>
+      <p class="meta" id="m-map"></p>
+      <svg id="map" role="img" aria-label="Carte des quartiers"></svg>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section class="card" aria-labelledby="t-rank">
+      <h2 id="t-rank">Classement</h2>
+      <p class="meta">Du plus élevé au plus faible. <span class="tag">● SG</span> = quartier qui couvre une vraie part de Saint-Gilles ; les autres n'en touchent qu'une lisière.</p>
+      <ol class="rank" id="rank"></ol>
+    </section>
+  </div>
+
+  <section class="card sheet" aria-live="polite">
+    <h2 id="t-sheet"></h2>
+    <p class="meta" id="m-sheet"></p>
+    <div class="grid" id="sheet"></div>
+  </section>
+
+  <p class="note">Source : IBSA, Monitoring des quartiers, export du 21/11/2026. Les valeurs vides correspondent à « ND » (non disponible) ou « VS » (masquée). Les années en <span class="old">orange</span> ont plus de 10 ans. Cureghem Bara, Bas Forest et la Gare du Midi débordent largement de Saint-Gilles : leurs valeurs portent sur tout le quartier.</p>
+  </div>
+</div>
+
+<script>
+const D={"feats":[{"code":7,"nom":"Sablon","geom":[[[[4.35609,50.83577],[4.35609,50.83577],[4.35596,50.83589],[4.3554,50.83566],[4.3554,50.83565],[4.35596,50.83589],[4.35609,50.83576],[4.35609,50.83577]]]],"v":{"tp_access_min_2021":28.85,"bruit_lden_2021":66.16,"bruit_ln_2021":57.79,"no2_2024":21.35,"pm25_2024":8.59,"dens_bureaux_2022":725379.64,"dens_logts_2021":6162.64,"dens_pop_2025":6531.49,"dens_menages_2025":4270.92,"dist_4biens_m_2023":137.0,"haut_max_m_2026":97.28,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":1582.0,"nb_bim_h_2024":293.0,"nb_bat_proteg_2012":108.0,"nb_cpas_2023":110.0,"nb_bim_2024":659.0,"nb_femmes_2025":1446.0,"nb_bim_f_2024":366.0,"nb_logts_2021":2857.0,"nb_logts_jardin_2001":104.0,"nb_menages_2025":1980.0,"nb_ventes_app_2023":27.0,"niveaux_moy_2026":4.11,"pct_pop_bus_2018":100.0,"pct_pop_metro_2018":63.19,"pct_pop_metro_chrono_2018":60.46,"pct_pop_tram_2018":98.69,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":87.21,"pct_trottoir_2014":37.75,"pct_logts_inocc_2021":44.49,"pct_locataires_2021":47.64,"pct_proprio_2021":7.88,"pct_nouv_region_2019":37.92,"pct_nouv_quartier_2019":54.76,"pct_apparts_2021":78.47,"bat_proteg_p1000_2012":119.21,"pct_cpas_2023":4.91,"pct_bim_f_2024":25.26,"pct_bim_h_2024":19.18,"pct_bim_2024":22.14,"pct_couples_enf_2025":7.58,"pct_couples_ssenf_2025":13.33,"pct_f2049_couple_ssenf_2025":16.58,"pct_f2059_couple_enf_2025":13.66,"pct_f60_couple_ssenf_2025":28.52,"pct_isol_f30p_2024":22.51,"pct_isol_f65p_2025":5.45,"pct_isol_f_m30_2024":9.75,"pct_isol_h30p_2024":29.67,"pct_isol_h65p_2025":4.85,"pct_isol_h_m30_2024":6.33,"pct_isol_30p_2025":52.53,"pct_isol_65p_2025":10.3,"pct_isol_m30_2025":16.26,"pct_isol_1829_2025":49.24,"pct_isol_parmi65_2025":51.91,"pct_logts_jardin_2001":9.03,"pct_maisons_2021":6.06,"pct_monoparent_2025":5.76,"pct_meres_seules_2025":4.7,"pct_meres_seules_2049_2025":6.31,"pct_peres_seuls_2025":1.06,"pct_impermeable_2022":91.9,"population_2025":3028.0,"prix_med_app_2023":null,"rapport_masc_2025":109.41,"rapport_ps_2026":1.90277,"rev_equiv_med_2023":19359.0,"rev_equiv_moy_2023":27107.0,"rev_imp_med_decl_2023":23674.0,"rev_imp_moy_decl_2023":39259.0,"rev_imp_moy_decl_cl_2023":4.0,"rev_imp_moy_hab_2023":22432.0,"rev_imp_moy_hab_cl_2023":4.0,"superficie_km2_2024":0.46359,"surf_bureaux_m2_2022":336286.0,"taille_menage_2025":1.53,"pct_emprise_2026":46.798,"occ_voirie_17h_2011":45.44,"occ_voirie_8h_2011":39.9,"croiss_pop_2020":1.7,"croiss_pop_f_2020":1.79,"croiss_pop_h_2020":1.61,"pct_rdc_commerce_2023":34.23,"pct_vegetal_2023":13.4,"pct_veg_haute_2021":9.7}},{"code":8,"nom":"Marolles","geom":[[[[4.35521,50.83552],[4.35517,50.83556],[4.35415,50.83513],[4.35352,50.83487],[4.35128,50.83393],[4.35001,50.8334],[4.34899,50.83301],[4.34867,50.83289],[4.34857,50.83286],[4.34846,50.83283],[4.34834,50.83281],[4.34824,50.8328],[4.34815,50.83279],[4.34811,50.83278],[4.34784,50.83278],[4.34595,50.83272],[4.34586,50.83271],[4.34497,50.83261],[4.34487,50.83261],[4.34461,50.83264],[4.34415,50.83274],[4.34388,50.83279],[4.343,50.83297],[4.34298,50.83298],[4.34296,50.833],[4.34293,50.83301],[4.3429,50.83304],[4.34288,50.83306],[4.34286,50.83309],[4.34272,50.83347],[4.34261,50.83376],[4.34241,50.83431],[4.34229,50.83464],[4.34195,50.83558],[4.34155,50.83669],[4.3413,50.83741],[4.34115,50.83781],[4.34085,50.83864],[4.34085,50.83864],[4.34108,50.838],[4.34115,50.83781],[4.3413,50.83741],[4.34131,50.83736],[4.34155,50.83669],[4.34195,50.83558],[4.34229,50.83464],[4.34241,50.83431],[4.34243,50.83426],[4.34261,50.83376],[4.34272,50.83347],[4.34286,50.83309],[4.34288,50.83306],[4.3429,50.83304],[4.34293,50.83301],[4.34296,50.83299],[4.34298,50.83298],[4.343,50.83297],[4.34388,50.83279],[4.34415,50.83274],[4.34461,50.83264],[4.34482,50.83262],[4.34487,50.83261],[4.34492,50.83261],[4.34497,50.8326],[4.34586,50.83271],[4.34595,50.83272],[4.34784,50.83277],[4.34811,50.83278],[4.34815,50.83279],[4.34824,50.83279],[4.34834,50.83281],[4.34846,50.83283],[4.34857,50.83286],[4.34867,50.83289],[4.34867,50.83289],[4.34898,50.83301],[4.35001,50.8334],[4.35128,50.83393],[4.35351,50.83487],[4.35415,50.83513],[4.35517,50.83556],[4.35521,50.83552],[4.35521,50.83552]]]],"v":{"tp_access_min_2021":28.66,"bruit_lden_2021":66.35,"bruit_ln_2021":57.72,"no2_2024":21.25,"pm25_2024":8.52,"dens_bureaux_2022":186259.87,"dens_logts_2021":9339.06,"dens_pop_2025":19298.87,"dens_menages_2025":10073.09,"dist_4biens_m_2023":99.0,"haut_max_m_2026":103.77,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":6718.0,"nb_bim_h_2024":3314.0,"nb_bat_proteg_2012":40.0,"nb_cpas_2023":1148.0,"nb_bim_2024":6464.0,"nb_femmes_2025":5718.0,"nb_bim_f_2024":3150.0,"nb_logts_2021":6018.0,"nb_logts_jardin_2001":225.0,"nb_menages_2025":6491.0,"nb_ventes_app_2023":26.0,"niveaux_moy_2026":3.84,"pct_pop_bus_2018":84.21,"pct_pop_metro_2018":72.06,"pct_pop_metro_chrono_2018":91.8,"pct_pop_tram_2018":77.86,"pct_pop_tc_2018":99.76,"pct_pop_espvert_2012":47.69,"pct_trottoir_2014":43.88,"pct_logts_inocc_2021":22.45,"pct_locataires_2021":69.41,"pct_proprio_2021":8.14,"pct_nouv_region_2019":22.57,"pct_nouv_quartier_2019":43.08,"pct_apparts_2021":90.59,"bat_proteg_p1000_2012":27.62,"pct_cpas_2023":13.93,"pct_bim_f_2024":54.95,"pct_bim_h_2024":50.07,"pct_bim_2024":52.34,"pct_couples_enf_2025":14.48,"pct_couples_ssenf_2025":7.73,"pct_f2049_couple_ssenf_2025":10.08,"pct_f2059_couple_enf_2025":25.05,"pct_f60_couple_ssenf_2025":14.49,"pct_isol_f30p_2024":18.59,"pct_isol_f65p_2025":6.33,"pct_isol_f_m30_2024":5.11,"pct_isol_h30p_2024":33.56,"pct_isol_h65p_2025":5.11,"pct_isol_h_m30_2024":6.25,"pct_isol_30p_2025":52.04,"pct_isol_65p_2025":11.45,"pct_isol_m30_2025":12.2,"pct_isol_1829_2025":33.77,"pct_isol_parmi65_2025":44.79,"pct_logts_jardin_2001":6.15,"pct_maisons_2021":4.1,"pct_monoparent_2025":10.66,"pct_meres_seules_2025":8.97,"pct_meres_seules_2049_2025":12.14,"pct_peres_seuls_2025":1.69,"pct_impermeable_2022":92.8,"population_2025":12436.0,"prix_med_app_2023":null,"rapport_masc_2025":117.49,"rapport_ps_2026":1.62994,"rev_equiv_med_2023":15206.0,"rev_equiv_moy_2023":16181.0,"rev_imp_med_decl_2023":19743.0,"rev_imp_moy_decl_2023":22573.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":12382.0,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.64438,"surf_bureaux_m2_2022":120024.0,"taille_menage_2025":1.84,"pct_emprise_2026":43.3678,"occ_voirie_17h_2011":41.76,"occ_voirie_8h_2011":41.34,"croiss_pop_2020":0.1,"croiss_pop_f_2020":0.14,"croiss_pop_h_2020":0.05,"pct_rdc_commerce_2023":21.63,"pct_vegetal_2023":14.5,"pct_veg_haute_2021":10.4}},{"code":9,"nom":"Stalingrad","geom":[[[[4.34085,50.83864],[4.34051,50.83958],[4.3405,50.83958],[4.3405,50.83958],[4.34077,50.83884],[4.34085,50.83864],[4.34085,50.83864]]]],"v":{"tp_access_min_2021":28.17,"bruit_lden_2021":67.18,"bruit_ln_2021":58.59,"no2_2024":19.55,"pm25_2024":8.36,"dens_bureaux_2022":128630.52,"dens_logts_2021":10989.78,"dens_pop_2025":17119.58,"dens_menages_2025":9649.67,"dist_4biens_m_2023":103.0,"haut_max_m_2026":46.25,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":2248.0,"nb_bim_h_2024":732.0,"nb_bat_proteg_2012":48.0,"nb_cpas_2023":195.0,"nb_bim_2024":1447.0,"nb_femmes_2025":1891.0,"nb_bim_f_2024":715.0,"nb_logts_2021":2657.0,"nb_logts_jardin_2001":87.0,"nb_menages_2025":2333.0,"nb_ventes_app_2023":24.0,"niveaux_moy_2026":3.95,"pct_pop_bus_2018":86.43,"pct_pop_metro_2018":12.48,"pct_pop_metro_chrono_2018":100.0,"pct_pop_tram_2018":98.02,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":40.61,"pct_trottoir_2014":48.03,"pct_logts_inocc_2021":24.95,"pct_locataires_2021":63.19,"pct_proprio_2021":11.86,"pct_nouv_region_2019":36.35,"pct_nouv_quartier_2019":59.03,"pct_apparts_2021":89.39,"bat_proteg_p1000_2012":71.22,"pct_cpas_2023":6.29,"pct_bim_f_2024":37.26,"pct_bim_h_2024":32.3,"pct_bim_2024":34.58,"pct_couples_enf_2025":10.42,"pct_couples_ssenf_2025":10.33,"pct_f2049_couple_ssenf_2025":15.23,"pct_f2059_couple_enf_2025":18.24,"pct_f60_couple_ssenf_2025":9.63,"pct_isol_f30p_2024":14.47,"pct_isol_f65p_2025":3.47,"pct_isol_f_m30_2024":11.84,"pct_isol_h30p_2024":28.77,"pct_isol_h65p_2025":3.26,"pct_isol_h_m30_2024":10.76,"pct_isol_30p_2025":42.73,"pct_isol_65p_2025":6.73,"pct_isol_m30_2025":21.99,"pct_isol_1829_2025":48.21,"pct_isol_parmi65_2025":33.55,"pct_logts_jardin_2001":6.34,"pct_maisons_2021":2.97,"pct_monoparent_2025":7.59,"pct_meres_seules_2025":5.92,"pct_meres_seules_2049_2025":8.5,"pct_peres_seuls_2025":1.67,"pct_impermeable_2022":98.4,"population_2025":4139.0,"prix_med_app_2023":null,"rapport_masc_2025":118.88,"rapport_ps_2026":1.93417,"rev_equiv_med_2023":16659.0,"rev_equiv_moy_2023":19121.0,"rev_imp_med_decl_2023":20740.0,"rev_imp_moy_decl_2023":26742.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":15905.0,"rev_imp_moy_hab_cl_2023":2.0,"superficie_km2_2024":0.24176,"surf_bureaux_m2_2022":31099.0,"taille_menage_2025":1.69,"pct_emprise_2026":49.3063,"occ_voirie_17h_2011":44.08,"occ_voirie_8h_2011":36.26,"croiss_pop_2020":0.75,"croiss_pop_f_2020":0.85,"croiss_pop_h_2020":0.64,"pct_rdc_commerce_2023":28.02,"pct_vegetal_2023":6.9,"pct_veg_haute_2021":4.1}},{"code":10,"nom":"Anneessens","geom":[[[[4.34051,50.83958],[4.3405,50.8396],[4.34035,50.84002],[4.3403,50.84016],[4.34008,50.84013],[4.33999,50.84011],[4.33995,50.84023],[4.33995,50.84023],[4.33999,50.84011],[4.34008,50.84013],[4.3403,50.84016],[4.34035,50.84002],[4.3405,50.8396],[4.3405,50.83958],[4.3405,50.83958],[4.34051,50.83958]]]],"v":{"tp_access_min_2021":28.91,"bruit_lden_2021":65.02,"bruit_ln_2021":57.11,"no2_2024":20.64,"pm25_2024":8.45,"dens_bureaux_2022":65251.1,"dens_logts_2021":11549.07,"dens_pop_2025":23233.74,"dens_menages_2025":10882.34,"dist_4biens_m_2023":106.0,"haut_max_m_2026":45.26,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":5520.0,"nb_bim_h_2024":2245.0,"nb_bat_proteg_2012":14.0,"nb_cpas_2023":661.0,"nb_bim_2024":4515.0,"nb_femmes_2025":4760.0,"nb_bim_f_2024":2270.0,"nb_logts_2021":5110.0,"nb_logts_jardin_2001":240.0,"nb_menages_2025":4815.0,"nb_ventes_app_2023":34.0,"niveaux_moy_2026":3.81,"pct_pop_bus_2018":94.46,"pct_pop_metro_2018":1.32,"pct_pop_metro_chrono_2018":82.39,"pct_pop_tram_2018":100.0,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":61.44,"pct_trottoir_2014":45.63,"pct_logts_inocc_2021":23.29,"pct_locataires_2021":59.96,"pct_proprio_2021":16.75,"pct_nouv_region_2019":28.0,"pct_nouv_quartier_2019":44.36,"pct_apparts_2021":92.37,"bat_proteg_p1000_2012":10.43,"pct_cpas_2023":9.35,"pct_bim_f_2024":47.51,"pct_bim_h_2024":40.31,"pct_bim_2024":43.63,"pct_couples_enf_2025":20.06,"pct_couples_ssenf_2025":11.59,"pct_f2049_couple_ssenf_2025":12.95,"pct_f2059_couple_enf_2025":29.41,"pct_f60_couple_ssenf_2025":23.37,"pct_isol_f30p_2024":12.23,"pct_isol_f65p_2025":3.24,"pct_isol_f_m30_2024":7.61,"pct_isol_h30p_2024":24.51,"pct_isol_h65p_2025":2.66,"pct_isol_h_m30_2024":8.64,"pct_isol_30p_2025":34.81,"pct_isol_65p_2025":5.9,"pct_isol_m30_2025":17.47,"pct_isol_1829_2025":35.59,"pct_isol_parmi65_2025":33.22,"pct_logts_jardin_2001":7.76,"pct_maisons_2021":5.13,"pct_monoparent_2025":10.78,"pct_meres_seules_2025":8.74,"pct_meres_seules_2049_2025":9.62,"pct_peres_seuls_2025":2.04,"pct_impermeable_2022":95.1,"population_2025":10280.0,"prix_med_app_2023":242000.0,"rapport_masc_2025":115.97,"rapport_ps_2026":1.65905,"rev_equiv_med_2023":15698.0,"rev_equiv_moy_2023":17128.0,"rev_imp_med_decl_2023":20731.0,"rev_imp_moy_decl_2023":25162.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":12788.0,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.44245,"surf_bureaux_m2_2022":28871.0,"taille_menage_2025":2.13,"pct_emprise_2026":48.7474,"occ_voirie_17h_2011":49.56,"occ_voirie_8h_2011":39.2,"croiss_pop_2020":0.4,"croiss_pop_f_2020":0.3,"croiss_pop_h_2020":0.52,"pct_rdc_commerce_2023":10.4,"pct_vegetal_2023":12.2,"pct_veg_haute_2021":7.9}},{"code":11,"nom":"Cureghem Bara","geom":[[[[4.33995,50.84023],[4.33995,50.84023],[4.33948,50.84018],[4.33947,50.84018],[4.33938,50.84018],[4.33926,50.84018],[4.33914,50.84017],[4.33903,50.84017],[4.33902,50.84017],[4.33893,50.84016],[4.33889,50.84015],[4.33885,50.84015],[4.33884,50.84014],[4.33879,50.84013],[4.33863,50.84004],[4.33853,50.83999],[4.33831,50.83986],[4.33829,50.83985],[4.33812,50.83977],[4.33796,50.83971],[4.33787,50.83968],[4.33785,50.83967],[4.33775,50.83964],[4.3375,50.83956],[4.33724,50.83947],[4.33721,50.83946],[4.33696,50.83937],[4.33678,50.83931],[4.33663,50.83923],[4.33605,50.83894],[4.33598,50.83884],[4.33598,50.83879],[4.33598,50.83854],[4.33598,50.83852],[4.33595,50.83846],[4.33595,50.83842],[4.33596,50.83831],[4.33596,50.8383],[4.33595,50.83821],[4.33589,50.83815],[4.33586,50.83812],[4.33578,50.83805],[4.33568,50.83799],[4.33552,50.83791],[4.33546,50.83787],[4.33535,50.8378],[4.33535,50.8378],[4.33519,50.83771],[4.33515,50.83767],[4.33501,50.83753],[4.3348,50.83731],[4.33448,50.83717],[4.3342,50.83701],[4.33415,50.83698],[4.33368,50.83673],[4.33358,50.83671],[4.33339,50.83665],[4.3332,50.83647],[4.33302,50.83615],[4.33287,50.83603],[4.33277,50.83595],[4.33277,50.83595],[4.3327,50.83589],[4.33267,50.83578],[4.33268,50.83572],[4.3327,50.83566],[4.33275,50.83551],[4.33276,50.83543],[4.33276,50.83542],[4.33276,50.83542],[4.33268,50.83532],[4.33258,50.83528],[4.33231,50.83514],[4.33224,50.83509],[4.33223,50.83505],[4.33222,50.83502],[4.33221,50.83497],[4.3322,50.83493],[4.3322,50.83492],[4.3322,50.83492],[4.3322,50.83492],[4.33219,50.83491],[4.33219,50.83491],[4.33219,50.83491],[4.33219,50.83491],[4.33217,50.8349],[4.33217,50.83488],[4.33216,50.83486],[4.33216,50.83483],[4.33216,50.83479],[4.33216,50.83473],[4.33217,50.8347],[4.3322,50.83448],[4.33222,50.83433],[4.33223,50.83433],[4.33233,50.83436],[4.33365,50.83539],[4.33562,50.83685],[4.33608,50.83721],[4.3361,50.83723],[4.33616,50.83725],[4.33868,50.83818],[4.34006,50.83918],[4.3405,50.83958],[4.3405,50.8396],[4.34035,50.84002],[4.3403,50.84016],[4.34008,50.84013],[4.33999,50.84011],[4.33995,50.84023],[4.33995,50.84023]]]],"v":{"tp_access_min_2021":27.72,"bruit_lden_2021":64.3,"bruit_ln_2021":56.54,"no2_2024":18.37,"pm25_2024":8.23,"dens_bureaux_2022":328221.69,"dens_logts_2021":9605.05,"dens_pop_2025":20992.12,"dens_menages_2025":9141.78,"dist_4biens_m_2023":83.0,"haut_max_m_2026":153.69,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":6659.0,"nb_bim_h_2024":2856.0,"nb_bat_proteg_2012":11.0,"nb_cpas_2023":1104.0,"nb_bim_2024":5781.0,"nb_femmes_2025":5757.0,"nb_bim_f_2024":2925.0,"nb_logts_2021":5681.0,"nb_logts_jardin_2001":323.0,"nb_menages_2025":5407.0,"nb_ventes_app_2023":59.0,"niveaux_moy_2026":3.57,"pct_pop_bus_2018":70.64,"pct_pop_metro_2018":92.25,"pct_pop_metro_chrono_2018":98.92,"pct_pop_tram_2018":96.98,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":58.61,"pct_trottoir_2014":43.91,"pct_logts_inocc_2021":19.33,"pct_locataires_2021":58.72,"pct_proprio_2021":21.95,"pct_nouv_region_2019":33.06,"pct_nouv_quartier_2019":48.97,"pct_apparts_2021":93.91,"bat_proteg_p1000_2012":5.7,"pct_cpas_2023":13.47,"pct_bim_f_2024":50.35,"pct_bim_h_2024":42.93,"pct_bim_2024":46.39,"pct_couples_enf_2025":24.26,"pct_couples_ssenf_2025":10.25,"pct_f2049_couple_ssenf_2025":10.27,"pct_f2059_couple_enf_2025":35.47,"pct_f60_couple_ssenf_2025":21.87,"pct_isol_f30p_2024":11.89,"pct_isol_f65p_2025":3.7,"pct_isol_f_m30_2024":2.95,"pct_isol_h30p_2024":26.84,"pct_isol_h65p_2025":3.01,"pct_isol_h_m30_2024":6.21,"pct_isol_30p_2025":38.75,"pct_isol_65p_2025":6.71,"pct_isol_m30_2025":8.56,"pct_isol_1829_2025":20.45,"pct_isol_parmi65_2025":38.66,"pct_logts_jardin_2001":11.66,"pct_maisons_2021":3.59,"pct_monoparent_2025":13.37,"pct_meres_seules_2025":11.32,"pct_meres_seules_2049_2025":15.04,"pct_peres_seuls_2025":2.05,"pct_impermeable_2022":96.9,"population_2025":12416.0,"prix_med_app_2023":220000.0,"rapport_masc_2025":115.67,"rapport_ps_2026":1.85942,"rev_equiv_med_2023":14919.0,"rev_equiv_moy_2023":15697.0,"rev_imp_med_decl_2023":20000.0,"rev_imp_moy_decl_2023":23051.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":10942.0,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.59145,"surf_bureaux_m2_2022":194130.0,"taille_menage_2025":2.29,"pct_emprise_2026":51.4156,"occ_voirie_17h_2011":42.54,"occ_voirie_8h_2011":39.41,"croiss_pop_2020":0.3,"croiss_pop_f_2020":0.27,"croiss_pop_h_2020":0.34,"pct_rdc_commerce_2023":24.72,"pct_vegetal_2023":8.3,"pct_veg_haute_2021":5.2}},{"code":12,"nom":"Cureghem Vétérinaire","geom":[[[[4.33277,50.83595],[4.3327,50.83589],[4.3327,50.83589],[4.33277,50.83595],[4.33277,50.83595]]],[[[4.33276,50.83542],[4.33268,50.83532],[4.33258,50.83528],[4.33231,50.83515],[4.33224,50.83509],[4.33224,50.83509],[4.33231,50.83514],[4.33258,50.83528],[4.33268,50.83532],[4.33276,50.83542],[4.33276,50.83542]]],[[[4.3322,50.83492],[4.33219,50.83491],[4.33219,50.83491],[4.3322,50.83492],[4.3322,50.83492]]],[[[4.33219,50.83491],[4.33217,50.8349],[4.33217,50.8349],[4.33219,50.83491],[4.33219,50.83491]]],[[[4.33222,50.83433],[4.33158,50.83382],[4.33107,50.83341],[4.33096,50.83332],[4.33089,50.83326],[4.33083,50.83319],[4.33079,50.83314],[4.33076,50.83309],[4.33074,50.83305],[4.33072,50.833],[4.33072,50.833],[4.33074,50.83305],[4.33076,50.83309],[4.33079,50.83314],[4.33083,50.83319],[4.33089,50.83326],[4.33096,50.83332],[4.33107,50.83341],[4.33157,50.83382],[4.33222,50.83433],[4.33222,50.83433]]],[[[4.33057,50.83236],[4.33055,50.83232],[4.33051,50.83226],[4.33047,50.83219],[4.33046,50.83218],[4.3304,50.83211],[4.33035,50.83206],[4.3303,50.83202],[4.33029,50.83201],[4.33024,50.83197],[4.33,50.83179],[4.3297,50.83157],[4.32965,50.83153],[4.32959,50.8315],[4.32952,50.83146],[4.32942,50.83143],[4.32927,50.8314],[4.32883,50.83132],[4.32825,50.83121],[4.32764,50.8311],[4.32698,50.831],[4.32649,50.83086],[4.32636,50.83082],[4.32618,50.83075],[4.32611,50.83072],[4.32605,50.83069],[4.326,50.83065],[4.3259,50.83055],[4.3259,50.83055],[4.326,50.83065],[4.32605,50.83069],[4.32611,50.83072],[4.32618,50.83075],[4.32636,50.83082],[4.32649,50.83086],[4.32698,50.831],[4.32764,50.8311],[4.32824,50.83121],[4.32883,50.83132],[4.32927,50.83139],[4.32942,50.83143],[4.32952,50.83146],[4.32959,50.8315],[4.32965,50.83153],[4.3297,50.83157],[4.33,50.83179],[4.33024,50.83197],[4.33029,50.83201],[4.3303,50.83202],[4.33035,50.83206],[4.3304,50.83211],[4.33046,50.83218],[4.33047,50.83219],[4.33051,50.83225],[4.33055,50.83231],[4.33057,50.83236],[4.33057,50.83236]]]],"v":{"tp_access_min_2021":34.21,"bruit_lden_2021":63.85,"bruit_ln_2021":56.35,"no2_2024":17.66,"pm25_2024":8.13,"dens_bureaux_2022":145438.82,"dens_logts_2021":6714.99,"dens_pop_2025":16164.01,"dens_menages_2025":6720.96,"dist_4biens_m_2023":168.0,"haut_max_m_2026":65.45,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":5544.0,"nb_bim_h_2024":2480.0,"nb_bat_proteg_2012":33.0,"nb_cpas_2023":742.0,"nb_bim_2024":5137.0,"nb_femmes_2025":5293.0,"nb_bim_f_2024":2657.0,"nb_logts_2021":4502.0,"nb_logts_jardin_2001":315.0,"nb_menages_2025":4506.0,"nb_ventes_app_2023":38.0,"niveaux_moy_2026":3.34,"pct_pop_bus_2018":66.35,"pct_pop_metro_2018":16.6,"pct_pop_metro_chrono_2018":18.61,"pct_pop_tram_2018":70.61,"pct_pop_tc_2018":89.75,"pct_pop_espvert_2012":98.73,"pct_trottoir_2014":40.23,"pct_logts_inocc_2021":16.97,"pct_locataires_2021":62.06,"pct_proprio_2021":20.97,"pct_nouv_region_2019":25.58,"pct_nouv_quartier_2019":42.46,"pct_apparts_2021":92.05,"bat_proteg_p1000_2012":26.98,"pct_cpas_2023":11.67,"pct_bim_f_2024":53.56,"pct_bim_h_2024":47.02,"pct_bim_2024":50.19,"pct_couples_enf_2025":26.63,"pct_couples_ssenf_2025":10.61,"pct_f2049_couple_ssenf_2025":8.4,"pct_f2059_couple_enf_2025":38.93,"pct_f60_couple_ssenf_2025":22.62,"pct_isol_f30p_2024":14.5,"pct_isol_f65p_2025":6.46,"pct_isol_f_m30_2024":2.44,"pct_isol_h30p_2024":22.63,"pct_isol_h65p_2025":3.0,"pct_isol_h_m30_2024":4.25,"pct_isol_30p_2025":36.22,"pct_isol_65p_2025":9.45,"pct_isol_m30_2025":7.57,"pct_isol_1829_2025":19.21,"pct_isol_parmi65_2025":44.42,"pct_logts_jardin_2001":11.33,"pct_maisons_2021":2.75,"pct_monoparent_2025":15.18,"pct_meres_seules_2025":13.34,"pct_meres_seules_2049_2025":15.67,"pct_peres_seuls_2025":1.84,"pct_impermeable_2022":87.7,"population_2025":10837.0,"prix_med_app_2023":227000.0,"rapport_masc_2025":104.74,"rapport_ps_2026":1.20734,"rev_equiv_med_2023":15375.0,"rev_equiv_moy_2023":16114.0,"rev_imp_med_decl_2023":20382.0,"rev_imp_moy_decl_2023":24107.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":11355.0,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.67043,"surf_bureaux_m2_2022":97508.0,"taille_menage_2025":2.4,"pct_emprise_2026":40.8048,"occ_voirie_17h_2011":48.04,"occ_voirie_8h_2011":47.45,"croiss_pop_2020":2.26,"croiss_pop_f_2020":2.03,"croiss_pop_h_2020":2.5,"pct_rdc_commerce_2023":11.14,"pct_vegetal_2023":20.2,"pct_veg_haute_2021":13.3}},{"code":40,"nom":"Louise - Longue Haie","geom":[[[[4.35686,50.83496],[4.35687,50.83496],[4.35684,50.835],[4.35676,50.83507],[4.35671,50.83512],[4.35665,50.83519],[4.35656,50.83528],[4.35651,50.83533],[4.35609,50.83577],[4.35609,50.83576],[4.35651,50.83533],[4.35656,50.83528],[4.35665,50.83519],[4.35671,50.83512],[4.35676,50.83507],[4.35683,50.83499],[4.35686,50.83496]]]],"v":{"tp_access_min_2021":31.57,"bruit_lden_2021":54.36,"bruit_ln_2021":45.81,"no2_2024":18.53,"pm25_2024":8.14,"dens_bureaux_2022":127978.85,"dens_logts_2021":11987.29,"dens_pop_2025":16770.62,"dens_menages_2025":10489.46,"dist_4biens_m_2023":146.0,"haut_max_m_2026":47.16,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":3480.0,"nb_bim_h_2024":378.0,"nb_bat_proteg_2012":9.0,"nb_cpas_2023":177.0,"nb_bim_2024":858.0,"nb_femmes_2025":3753.0,"nb_bim_f_2024":480.0,"nb_logts_2021":5170.0,"nb_logts_jardin_2001":573.0,"nb_menages_2025":4524.0,"nb_ventes_app_2023":71.0,"niveaux_moy_2026":3.78,"pct_pop_bus_2018":74.19,"pct_pop_metro_2018":27.18,"pct_pop_metro_chrono_2018":29.4,"pct_pop_tram_2018":95.13,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":71.0,"pct_trottoir_2014":40.01,"pct_logts_inocc_2021":25.53,"pct_locataires_2021":54.64,"pct_proprio_2021":19.83,"pct_nouv_region_2019":39.11,"pct_nouv_quartier_2019":59.71,"pct_apparts_2021":87.97,"bat_proteg_p1000_2012":6.2,"pct_cpas_2023":3.09,"pct_bim_f_2024":12.77,"pct_bim_h_2024":11.2,"pct_bim_2024":12.03,"pct_couples_enf_2025":10.37,"pct_couples_ssenf_2025":14.08,"pct_f2049_couple_ssenf_2025":18.22,"pct_f2059_couple_enf_2025":14.66,"pct_f60_couple_ssenf_2025":20.91,"pct_isol_f30p_2024":24.52,"pct_isol_f65p_2025":5.08,"pct_isol_f_m30_2024":10.66,"pct_isol_h30p_2024":23.06,"pct_isol_h65p_2025":2.65,"pct_isol_h_m30_2024":7.45,"pct_isol_30p_2025":47.28,"pct_isol_65p_2025":7.74,"pct_isol_m30_2025":18.5,"pct_isol_1829_2025":45.19,"pct_isol_parmi65_2025":52.95,"pct_logts_jardin_2001":24.18,"pct_maisons_2021":4.64,"pct_monoparent_2025":4.86,"pct_meres_seules_2025":3.91,"pct_meres_seules_2049_2025":3.62,"pct_peres_seuls_2025":0.95,"pct_impermeable_2022":82.3,"population_2025":7233.0,"prix_med_app_2023":310000.0,"rapport_masc_2025":92.73,"rapport_ps_2026":1.86834,"rev_equiv_med_2023":21613.0,"rev_equiv_moy_2023":27257.0,"rev_imp_med_decl_2023":26920.0,"rev_imp_moy_decl_2023":40868.0,"rev_imp_moy_decl_cl_2023":4.0,"rev_imp_moy_hab_2023":23284.0,"rev_imp_moy_hab_cl_2023":4.0,"superficie_km2_2024":0.43128,"surf_bureaux_m2_2022":55196.0,"taille_menage_2025":1.6,"pct_emprise_2026":49.5622,"occ_voirie_17h_2011":37.33,"occ_voirie_8h_2011":35.53,"croiss_pop_2020":2.92,"croiss_pop_f_2020":2.86,"croiss_pop_h_2020":2.96,"pct_rdc_commerce_2023":11.18,"pct_vegetal_2023":26.2,"pct_veg_haute_2021":15.2}},{"code":41,"nom":"Berckmans - Hôtel des Monnaies","geom":[[[[4.35631,50.83473],[4.35634,50.83474],[4.35686,50.83496],[4.35683,50.83499],[4.35676,50.83507],[4.35671,50.83512],[4.35665,50.83519],[4.35656,50.83528],[4.35651,50.83533],[4.35609,50.83576],[4.35596,50.83589],[4.3554,50.83565],[4.35568,50.83539],[4.35568,50.83539],[4.35568,50.83538],[4.35564,50.83537],[4.35631,50.83473]]],[[[4.34718,50.8312],[4.34811,50.83051],[4.34995,50.82914],[4.35115,50.82822],[4.35203,50.82755],[4.35463,50.82563],[4.35536,50.82791],[4.35587,50.82966],[4.35601,50.83001],[4.35693,50.83284],[4.35693,50.83284],[4.35692,50.83284],[4.35706,50.83325],[4.35719,50.83365],[4.35711,50.83372],[4.35642,50.83439],[4.35639,50.83442],[4.35635,50.83446],[4.35596,50.83484],[4.35585,50.83494],[4.35548,50.8353],[4.35545,50.83529],[4.35521,50.83552],[4.35517,50.83556],[4.35415,50.83513],[4.35351,50.83487],[4.35128,50.83393],[4.35001,50.8334],[4.34898,50.83301],[4.34867,50.83289],[4.34867,50.83289],[4.34857,50.83286],[4.34846,50.83283],[4.34834,50.83281],[4.34824,50.83279],[4.34815,50.83279],[4.34811,50.83278],[4.34784,50.83277],[4.34595,50.83272],[4.34586,50.83271],[4.34497,50.8326],[4.34492,50.83261],[4.34487,50.83237],[4.34477,50.83183],[4.34641,50.83178],[4.34718,50.8312]]]],"v":{"tp_access_min_2021":29.96,"bruit_lden_2021":59.89,"bruit_ln_2021":51.8,"no2_2024":19.64,"pm25_2024":8.24,"dens_bureaux_2022":282538.0,"dens_logts_2021":15015.11,"dens_pop_2025":20224.62,"dens_menages_2025":11891.66,"dist_4biens_m_2023":133.0,"haut_max_m_2026":48.65,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":4389.0,"nb_bim_h_2024":772.0,"nb_bat_proteg_2012":12.0,"nb_cpas_2023":364.0,"nb_bim_2024":1679.0,"nb_femmes_2025":4579.0,"nb_bim_f_2024":907.0,"nb_logts_2021":6658.0,"nb_logts_jardin_2001":539.0,"nb_menages_2025":5273.0,"nb_ventes_app_2023":87.0,"niveaux_moy_2026":3.96,"pct_pop_bus_2018":11.21,"pct_pop_metro_2018":80.63,"pct_pop_metro_chrono_2018":85.87,"pct_pop_tram_2018":96.21,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":90.45,"pct_trottoir_2014":41.5,"pct_logts_inocc_2021":26.57,"pct_locataires_2021":55.78,"pct_proprio_2021":17.65,"pct_nouv_region_2019":39.91,"pct_nouv_quartier_2019":58.97,"pct_apparts_2021":92.01,"bat_proteg_p1000_2012":7.44,"pct_cpas_2023":5.05,"pct_bim_f_2024":19.59,"pct_bim_h_2024":17.51,"pct_bim_2024":18.57,"pct_couples_enf_2025":10.11,"pct_couples_ssenf_2025":13.67,"pct_f2049_couple_ssenf_2025":16.58,"pct_f2059_couple_enf_2025":14.28,"pct_f60_couple_ssenf_2025":22.92,"pct_isol_f30p_2024":21.9,"pct_isol_f65p_2025":4.51,"pct_isol_f_m30_2024":9.24,"pct_isol_h30p_2024":23.28,"pct_isol_h65p_2025":2.69,"pct_isol_h_m30_2024":7.08,"pct_isol_30p_2025":46.63,"pct_isol_65p_2025":7.21,"pct_isol_m30_2025":15.23,"pct_isol_1829_2025":35.72,"pct_isol_parmi65_2025":50.0,"pct_logts_jardin_2001":16.79,"pct_maisons_2021":2.79,"pct_monoparent_2025":6.47,"pct_meres_seules_2025":5.46,"pct_meres_seules_2049_2025":5.2,"pct_peres_seuls_2025":1.01,"pct_impermeable_2022":88.3,"population_2025":8968.0,"prix_med_app_2023":290000.0,"rapport_masc_2025":95.85,"rapport_ps_2026":2.005,"rev_equiv_med_2023":20746.0,"rev_equiv_moy_2023":25112.0,"rev_imp_med_decl_2023":24427.0,"rev_imp_moy_decl_2023":35039.0,"rev_imp_moy_decl_cl_2023":3.0,"rev_imp_moy_hab_2023":20653.0,"rev_imp_moy_hab_cl_2023":4.0,"superficie_km2_2024":0.44342,"surf_bureaux_m2_2022":125283.0,"taille_menage_2025":1.68,"pct_emprise_2026":52.1322,"occ_voirie_17h_2011":38.33,"occ_voirie_8h_2011":38.29,"croiss_pop_2020":0.4,"croiss_pop_f_2020":0.36,"croiss_pop_h_2020":0.44,"pct_rdc_commerce_2023":13.79,"pct_vegetal_2023":18.9,"pct_veg_haute_2021":14.0}},{"code":42,"nom":"Châtelain","geom":[[[[4.35568,50.83539],[4.35564,50.83537],[4.35564,50.83537],[4.35568,50.83538],[4.35568,50.83539]]],[[[4.3559,50.82387],[4.35607,50.82393],[4.35631,50.824],[4.35657,50.82408],[4.35685,50.82418],[4.35693,50.8242],[4.35701,50.82423],[4.3571,50.82426],[4.35718,50.82429],[4.35723,50.8243],[4.35701,50.82445],[4.35721,50.82454],[4.35751,50.82472],[4.35771,50.82481],[4.35802,50.82496],[4.35815,50.82505],[4.35845,50.82494],[4.3584,50.82516],[4.35838,50.82524],[4.35835,50.82541],[4.35835,50.82542],[4.35835,50.82546],[4.35829,50.8256],[4.35842,50.82595],[4.35846,50.82635],[4.35848,50.82651],[4.35852,50.8269],[4.35854,50.82717],[4.35855,50.82725],[4.35855,50.82727],[4.35846,50.82732],[4.35827,50.82743],[4.35821,50.82747],[4.357,50.82816],[4.35732,50.8284],[4.3576,50.82861],[4.35755,50.82863],[4.35713,50.82886],[4.3576,50.8292],[4.35767,50.82928],[4.35792,50.82959],[4.35834,50.83012],[4.35844,50.83024],[4.35835,50.83028],[4.35811,50.83037],[4.35827,50.83056],[4.35832,50.83063],[4.35791,50.83103],[4.35794,50.83113],[4.35801,50.83132],[4.35804,50.83141],[4.35811,50.83153],[4.35833,50.83188],[4.35767,50.83222],[4.35762,50.83226],[4.3576,50.83266],[4.35704,50.83281],[4.35692,50.83284],[4.35719,50.83365],[4.35711,50.83372],[4.35642,50.83439],[4.35639,50.83442],[4.35635,50.83447],[4.35596,50.83484],[4.35585,50.83494],[4.35548,50.8353],[4.35545,50.83529],[4.35521,50.83552],[4.35521,50.83552],[4.35545,50.83529],[4.35548,50.8353],[4.35585,50.83494],[4.35596,50.83484],[4.35635,50.83446],[4.35639,50.83442],[4.35642,50.83439],[4.35711,50.83372],[4.35719,50.83365],[4.35706,50.83325],[4.35692,50.83284],[4.35693,50.83284],[4.35693,50.83284],[4.35601,50.83001],[4.35587,50.82966],[4.35536,50.82791],[4.35463,50.82563],[4.3546,50.82555],[4.35406,50.82393],[4.35367,50.82284],[4.35407,50.82266],[4.35407,50.82266],[4.35411,50.8227],[4.35437,50.82283],[4.35482,50.82316],[4.35565,50.82371],[4.3559,50.82387]]]],"v":{"tp_access_min_2021":32.91,"bruit_lden_2021":62.96,"bruit_ln_2021":54.07,"no2_2024":17.59,"pm25_2024":7.98,"dens_bureaux_2022":324164.53,"dens_logts_2021":10716.72,"dens_pop_2025":15413.53,"dens_menages_2025":9408.77,"dist_4biens_m_2023":121.0,"haut_max_m_2026":88.48,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":4847.0,"nb_bim_h_2024":440.0,"nb_bat_proteg_2012":28.0,"nb_cpas_2023":184.0,"nb_bim_2024":981.0,"nb_femmes_2025":5323.0,"nb_bim_f_2024":541.0,"nb_logts_2021":7071.0,"nb_logts_jardin_2001":796.0,"nb_menages_2025":6208.0,"nb_ventes_app_2023":105.0,"niveaux_moy_2026":4.0,"pct_pop_bus_2018":71.43,"pct_pop_metro_2018":4.48,"pct_pop_metro_chrono_2018":5.1,"pct_pop_tram_2018":100.0,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":72.28,"pct_trottoir_2014":33.7,"pct_logts_inocc_2021":21.2,"pct_locataires_2021":58.03,"pct_proprio_2021":20.77,"pct_nouv_region_2019":41.86,"pct_nouv_quartier_2019":60.71,"pct_apparts_2021":93.66,"bat_proteg_p1000_2012":13.31,"pct_cpas_2023":2.29,"pct_bim_f_2024":10.25,"pct_bim_h_2024":8.91,"pct_bim_2024":9.6,"pct_couples_enf_2025":10.74,"pct_couples_ssenf_2025":15.34,"pct_f2049_couple_ssenf_2025":19.86,"pct_f2059_couple_enf_2025":15.09,"pct_f60_couple_ssenf_2025":25.97,"pct_isol_f30p_2024":23.23,"pct_isol_f65p_2025":4.16,"pct_isol_f_m30_2024":9.21,"pct_isol_h30p_2024":23.2,"pct_isol_h65p_2025":2.79,"pct_isol_h_m30_2024":6.36,"pct_isol_30p_2025":46.84,"pct_isol_65p_2025":6.94,"pct_isol_m30_2025":15.24,"pct_isol_1829_2025":39.03,"pct_isol_parmi65_2025":46.1,"pct_logts_jardin_2001":21.28,"pct_maisons_2021":5.43,"pct_monoparent_2025":6.01,"pct_meres_seules_2025":4.85,"pct_meres_seules_2049_2025":4.32,"pct_peres_seuls_2025":1.16,"pct_impermeable_2022":82.1,"population_2025":10170.0,"prix_med_app_2023":371500.0,"rapport_masc_2025":91.06,"rapport_ps_2026":1.91954,"rev_equiv_med_2023":23022.0,"rev_equiv_moy_2023":29759.0,"rev_imp_med_decl_2023":29016.0,"rev_imp_moy_decl_2023":44710.0,"rev_imp_moy_decl_cl_2023":5.0,"rev_imp_moy_hab_2023":24889.0,"rev_imp_moy_hab_cl_2023":5.0,"superficie_km2_2024":0.6598,"surf_bureaux_m2_2022":213887.0,"taille_menage_2025":1.64,"pct_emprise_2026":45.5917,"occ_voirie_17h_2011":45.66,"occ_voirie_8h_2011":42.83,"croiss_pop_2020":0.94,"croiss_pop_f_2020":0.75,"croiss_pop_h_2020":1.13,"pct_rdc_commerce_2023":25.07,"pct_vegetal_2023":22.3,"pct_veg_haute_2021":16.3}},{"code":43,"nom":"Brugmann - Lepoutre","geom":[[[[4.35363,50.82058],[4.35363,50.82058],[4.35367,50.82071],[4.35383,50.82149],[4.3539,50.82252],[4.3539,50.82252],[4.35383,50.82149],[4.35367,50.82071],[4.35365,50.82065],[4.35363,50.82058]]]],"v":{"tp_access_min_2021":36.08,"bruit_lden_2021":57.51,"bruit_ln_2021":48.67,"no2_2024":15.94,"pm25_2024":7.75,"dens_bureaux_2022":58841.98,"dens_logts_2021":8381.15,"dens_pop_2025":13116.8,"dens_menages_2025":7229.65,"dist_4biens_m_2023":149.0,"haut_max_m_2026":71.17,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":7949.0,"nb_bim_h_2024":758.0,"nb_bat_proteg_2012":51.0,"nb_cpas_2023":333.0,"nb_bim_2024":1734.0,"nb_femmes_2025":8944.0,"nb_bim_f_2024":976.0,"nb_logts_2021":10794.0,"nb_logts_jardin_2001":1885.0,"nb_menages_2025":9311.0,"nb_ventes_app_2023":184.0,"niveaux_moy_2026":3.72,"pct_pop_bus_2018":74.52,"pct_pop_metro_2018":0.0,"pct_pop_metro_chrono_2018":48.24,"pct_pop_tram_2018":74.95,"pct_pop_tc_2018":95.29,"pct_pop_espvert_2012":87.01,"pct_trottoir_2014":36.76,"pct_logts_inocc_2021":19.18,"pct_locataires_2021":53.93,"pct_proprio_2021":26.89,"pct_nouv_region_2019":34.37,"pct_nouv_quartier_2019":53.5,"pct_apparts_2021":88.93,"bat_proteg_p1000_2012":12.96,"pct_cpas_2023":2.69,"pct_bim_f_2024":11.03,"pct_bim_h_2024":9.44,"pct_bim_2024":10.27,"pct_couples_enf_2025":15.12,"pct_couples_ssenf_2025":17.06,"pct_f2049_couple_ssenf_2025":19.43,"pct_f2059_couple_enf_2025":20.88,"pct_f60_couple_ssenf_2025":28.66,"pct_isol_f30p_2024":23.49,"pct_isol_f65p_2025":6.2,"pct_isol_f_m30_2024":6.95,"pct_isol_h30p_2024":20.06,"pct_isol_h65p_2025":2.94,"pct_isol_h_m30_2024":4.89,"pct_isol_30p_2025":43.54,"pct_isol_65p_2025":9.14,"pct_isol_m30_2025":11.55,"pct_isol_1829_2025":31.37,"pct_isol_parmi65_2025":43.55,"pct_logts_jardin_2001":28.18,"pct_maisons_2021":10.06,"pct_monoparent_2025":8.05,"pct_meres_seules_2025":6.84,"pct_meres_seules_2049_2025":5.78,"pct_peres_seuls_2025":1.21,"pct_impermeable_2022":75.8,"population_2025":16893.0,"prix_med_app_2023":371000.0,"rapport_masc_2025":88.88,"rapport_ps_2026":1.4486,"rev_equiv_med_2023":23439.0,"rev_equiv_moy_2023":35279.0,"rev_imp_med_decl_2023":29095.0,"rev_imp_moy_decl_2023":null,"rev_imp_moy_decl_cl_2023":5.0,"rev_imp_moy_hab_2023":null,"rev_imp_moy_hab_cl_2023":5.0,"superficie_km2_2024":1.28787,"surf_bureaux_m2_2022":75782.0,"taille_menage_2025":1.81,"pct_emprise_2026":40.7342,"occ_voirie_17h_2011":45.74,"occ_voirie_8h_2011":41.73,"croiss_pop_2020":0.42,"croiss_pop_f_2020":-0.06,"croiss_pop_h_2020":0.85,"pct_rdc_commerce_2023":12.62,"pct_vegetal_2023":30.8,"pct_veg_haute_2021":19.7}},{"code":47,"nom":"Haut Saint-Gilles","geom":[[[[4.33881,50.82528],[4.33895,50.8252],[4.33912,50.8251],[4.33929,50.82498],[4.33933,50.82495],[4.33943,50.82486],[4.33947,50.82483],[4.33964,50.82468],[4.33969,50.82464],[4.33972,50.82461],[4.34003,50.82427],[4.34015,50.82415],[4.34029,50.82399],[4.3409,50.82336],[4.3411,50.82314],[4.3411,50.82314],[4.3412,50.82304],[4.34129,50.82293],[4.34139,50.82282],[4.3414,50.82281],[4.34141,50.82279],[4.34142,50.82278],[4.34144,50.82276],[4.34146,50.82273],[4.34149,50.8227],[4.34145,50.82264],[4.34179,50.82247],[4.3421,50.82232],[4.34237,50.82219],[4.34245,50.82215],[4.34254,50.82209],[4.34294,50.82189],[4.34331,50.82171],[4.34404,50.82136],[4.34411,50.82133],[4.3442,50.82129],[4.34427,50.82125],[4.34434,50.82121],[4.34441,50.82118],[4.34447,50.82115],[4.34454,50.82112],[4.34463,50.8212],[4.34467,50.82121],[4.34479,50.82126],[4.34519,50.82152],[4.34529,50.82159],[4.34675,50.82119],[4.34696,50.82113],[4.3471,50.82109],[4.34714,50.82108],[4.34732,50.82103],[4.34758,50.82096],[4.34773,50.82092],[4.34801,50.82084],[4.34824,50.82083],[4.34931,50.82078],[4.34955,50.82076],[4.34998,50.82074],[4.35067,50.8207],[4.35098,50.82067],[4.35145,50.82066],[4.35216,50.8206],[4.35248,50.82057],[4.3536,50.82058],[4.35363,50.82058],[4.35365,50.82065],[4.35367,50.82071],[4.35383,50.82149],[4.3539,50.82252],[4.3539,50.82252],[4.3539,50.82252],[4.35396,50.82257],[4.35407,50.82266],[4.35407,50.82266],[4.35367,50.82284],[4.35406,50.82393],[4.3546,50.82555],[4.35463,50.82563],[4.35203,50.82755],[4.35115,50.82822],[4.34995,50.82914],[4.34811,50.83051],[4.34718,50.8312],[4.34621,50.83078],[4.34676,50.82972],[4.34684,50.82959],[4.34693,50.82943],[4.34555,50.82794],[4.34476,50.82709],[4.34472,50.82711],[4.34459,50.827],[4.3444,50.82705],[4.34445,50.82714],[4.34442,50.82715],[4.3444,50.82755],[4.34425,50.82762],[4.34422,50.82764],[4.3424,50.82836],[4.34206,50.82806],[4.34075,50.82708],[4.34225,50.82675],[4.34246,50.82665],[4.34266,50.82644],[4.33926,50.82542],[4.33883,50.82529],[4.33881,50.82528]]]],"v":{"tp_access_min_2021":31.03,"bruit_lden_2021":59.19,"bruit_ln_2021":50.69,"no2_2024":16.5,"pm25_2024":7.89,"dens_bureaux_2022":46486.01,"dens_logts_2021":11797.99,"dens_pop_2025":19135.06,"dens_menages_2025":10207.98,"dist_4biens_m_2023":124.0,"haut_max_m_2026":63.22,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":7121.0,"nb_bim_h_2024":1392.0,"nb_bat_proteg_2012":55.0,"nb_cpas_2023":499.0,"nb_bim_2024":2988.0,"nb_femmes_2025":7489.0,"nb_bim_f_2024":1596.0,"nb_logts_2021":9008.0,"nb_logts_jardin_2001":1331.0,"nb_menages_2025":7794.0,"nb_ventes_app_2023":83.0,"niveaux_moy_2026":3.84,"pct_pop_bus_2018":74.21,"pct_pop_metro_2018":4.45,"pct_pop_metro_chrono_2018":89.66,"pct_pop_tram_2018":100.0,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":86.56,"pct_trottoir_2014":38.19,"pct_logts_inocc_2021":17.52,"pct_locataires_2021":57.13,"pct_proprio_2021":25.36,"pct_nouv_region_2019":31.09,"pct_nouv_quartier_2019":50.42,"pct_apparts_2021":95.39,"bat_proteg_p1000_2012":17.74,"pct_cpas_2023":4.56,"pct_bim_f_2024":20.91,"pct_bim_h_2024":19.49,"pct_bim_2024":20.23,"pct_couples_enf_2025":14.55,"pct_couples_ssenf_2025":14.86,"pct_f2049_couple_ssenf_2025":17.67,"pct_f2059_couple_enf_2025":19.76,"pct_f60_couple_ssenf_2025":21.5,"pct_isol_f30p_2024":21.84,"pct_isol_f65p_2025":5.21,"pct_isol_f_m30_2024":5.87,"pct_isol_h30p_2024":22.18,"pct_isol_h65p_2025":2.87,"pct_isol_h_m30_2024":4.26,"pct_isol_30p_2025":44.48,"pct_isol_65p_2025":8.08,"pct_isol_m30_2025":10.29,"pct_isol_1829_2025":26.7,"pct_isol_parmi65_2025":39.01,"pct_logts_jardin_2001":22.36,"pct_maisons_2021":4.31,"pct_monoparent_2025":9.02,"pct_meres_seules_2025":7.45,"pct_meres_seules_2049_2025":6.37,"pct_peres_seuls_2025":1.57,"pct_impermeable_2022":85.1,"population_2025":14610.0,"prix_med_app_2023":320000.0,"rapport_masc_2025":95.09,"rapport_ps_2026":1.45556,"rev_equiv_med_2023":20688.0,"rev_equiv_moy_2023":23710.0,"rev_imp_med_decl_2023":23797.0,"rev_imp_moy_decl_2023":null,"rev_imp_moy_decl_cl_2023":3.0,"rev_imp_moy_hab_2023":null,"rev_imp_moy_hab_cl_2023":4.0,"superficie_km2_2024":0.76351,"surf_bureaux_m2_2022":35493.0,"taille_menage_2025":1.84,"pct_emprise_2026":44.0911,"occ_voirie_17h_2011":48.95,"occ_voirie_8h_2011":46.83,"croiss_pop_2020":-0.51,"croiss_pop_f_2020":-0.51,"croiss_pop_h_2020":-0.5,"pct_rdc_commerce_2023":11.63,"pct_vegetal_2023":20.6,"pct_veg_haute_2021":13.7}},{"code":48,"nom":"Porte de Hal","geom":[[[[4.33897,50.82947],[4.33929,50.82932],[4.34131,50.82842],[4.34206,50.82806],[4.3424,50.82836],[4.34422,50.82764],[4.34425,50.82762],[4.3444,50.82755],[4.34442,50.82715],[4.34445,50.82714],[4.3444,50.82705],[4.34459,50.827],[4.34472,50.82711],[4.34476,50.82709],[4.34555,50.82794],[4.34693,50.82943],[4.34684,50.82959],[4.34676,50.82972],[4.34621,50.83078],[4.34718,50.8312],[4.34641,50.83178],[4.34477,50.83183],[4.34487,50.83237],[4.34492,50.83261],[4.34487,50.83261],[4.34482,50.83262],[4.34461,50.83264],[4.34415,50.83274],[4.34388,50.83279],[4.343,50.83297],[4.34298,50.83298],[4.34296,50.83299],[4.34293,50.83301],[4.3429,50.83304],[4.34288,50.83306],[4.34286,50.83309],[4.34272,50.83347],[4.34261,50.83376],[4.34243,50.83426],[4.34241,50.83431],[4.34229,50.83464],[4.34195,50.83558],[4.34155,50.83669],[4.34131,50.83736],[4.3413,50.83741],[4.34115,50.83781],[4.34108,50.838],[4.34108,50.838],[4.34075,50.83784],[4.33889,50.83656],[4.33875,50.83644],[4.33817,50.83596],[4.33645,50.83454],[4.33567,50.83398],[4.33305,50.83209],[4.33438,50.83151],[4.33591,50.83083],[4.33897,50.82947]]]],"v":{"tp_access_min_2021":27.67,"bruit_lden_2021":63.04,"bruit_ln_2021":54.62,"no2_2024":20.21,"pm25_2024":8.32,"dens_bureaux_2022":278257.85,"dens_logts_2021":13812.53,"dens_pop_2025":25450.65,"dens_menages_2025":12203.32,"dist_4biens_m_2023":101.0,"haut_max_m_2026":57.45,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":6910.0,"nb_bim_h_2024":2325.0,"nb_bat_proteg_2012":31.0,"nb_cpas_2023":753.0,"nb_bim_2024":4954.0,"nb_femmes_2025":6644.0,"nb_bim_f_2024":2629.0,"nb_logts_2021":7356.0,"nb_logts_jardin_2001":649.0,"nb_menages_2025":6499.0,"nb_ventes_app_2023":51.0,"niveaux_moy_2026":3.59,"pct_pop_bus_2018":80.26,"pct_pop_metro_2018":82.99,"pct_pop_metro_chrono_2018":95.13,"pct_pop_tram_2018":100.0,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":95.83,"pct_trottoir_2014":40.16,"pct_logts_inocc_2021":17.17,"pct_locataires_2021":62.59,"pct_proprio_2021":20.24,"pct_nouv_region_2019":26.12,"pct_nouv_quartier_2019":45.05,"pct_apparts_2021":94.25,"bat_proteg_p1000_2012":13.93,"pct_cpas_2023":7.94,"pct_bim_f_2024":39.51,"pct_bim_h_2024":33.22,"pct_bim_2024":36.29,"pct_couples_enf_2025":18.9,"pct_couples_ssenf_2025":12.0,"pct_f2049_couple_ssenf_2025":11.67,"pct_f2059_couple_enf_2025":26.1,"pct_f60_couple_ssenf_2025":21.24,"pct_isol_f30p_2024":17.96,"pct_isol_f65p_2025":5.85,"pct_isol_f_m30_2024":3.89,"pct_isol_h30p_2024":23.46,"pct_isol_h65p_2025":3.54,"pct_isol_h_m30_2024":4.21,"pct_isol_30p_2025":42.42,"pct_isol_65p_2025":9.39,"pct_isol_m30_2025":7.43,"pct_isol_1829_2025":19.4,"pct_isol_parmi65_2025":41.05,"pct_logts_jardin_2001":13.85,"pct_maisons_2021":3.51,"pct_monoparent_2025":12.74,"pct_meres_seules_2025":10.76,"pct_meres_seules_2049_2025":10.89,"pct_peres_seuls_2025":1.98,"pct_impermeable_2022":94.7,"population_2025":13554.0,"prix_med_app_2023":281000.0,"rapport_masc_2025":104.0,"rapport_ps_2026":1.876,"rev_equiv_med_2023":17148.0,"rev_equiv_moy_2023":18439.0,"rev_imp_med_decl_2023":20962.0,"rev_imp_moy_decl_2023":25469.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":14439.0,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.53255,"surf_bureaux_m2_2022":148189.0,"taille_menage_2025":2.08,"pct_emprise_2026":52.3776,"occ_voirie_17h_2011":49.14,"occ_voirie_8h_2011":44.85,"croiss_pop_2020":-0.13,"croiss_pop_f_2020":-0.3,"croiss_pop_h_2020":0.05,"pct_rdc_commerce_2023":17.1,"pct_vegetal_2023":13.3,"pct_veg_haute_2021":8.8}},{"code":49,"nom":"Bosnie","geom":[[[[4.33415,50.82817],[4.33428,50.82813],[4.33471,50.82798],[4.33481,50.82788],[4.33491,50.82779],[4.33507,50.82764],[4.33511,50.8276],[4.33519,50.82753],[4.33522,50.8275],[4.33524,50.82748],[4.33563,50.82711],[4.33581,50.82694],[4.33595,50.82685],[4.33606,50.82678],[4.33615,50.82674],[4.33617,50.82672],[4.33623,50.82669],[4.33624,50.82668],[4.33625,50.82667],[4.3363,50.82665],[4.33633,50.82663],[4.33636,50.82661],[4.33642,50.82657],[4.33648,50.82654],[4.33654,50.8265],[4.3366,50.82647],[4.33662,50.82646],[4.33667,50.82643],[4.3367,50.82641],[4.33673,50.82639],[4.33679,50.82636],[4.33685,50.82632],[4.33692,50.82628],[4.33699,50.82624],[4.33704,50.82621],[4.33711,50.82617],[4.33712,50.82616],[4.33713,50.82616],[4.33719,50.8262],[4.33722,50.82618],[4.33727,50.82621],[4.33733,50.82617],[4.33739,50.82613],[4.33749,50.82605],[4.33756,50.82602],[4.33763,50.82599],[4.33777,50.82591],[4.33779,50.8259],[4.33797,50.8258],[4.33807,50.82574],[4.3383,50.8256],[4.33839,50.82554],[4.33861,50.8254],[4.33881,50.82528],[4.33883,50.82529],[4.33926,50.82542],[4.34266,50.82644],[4.34246,50.82665],[4.34225,50.82675],[4.34075,50.82708],[4.34206,50.82806],[4.34131,50.82842],[4.33929,50.82932],[4.33897,50.82947],[4.33591,50.83083],[4.335,50.83013],[4.33392,50.8293],[4.33415,50.82817]]]],"v":{"tp_access_min_2021":33.13,"bruit_lden_2021":56.95,"bruit_ln_2021":48.62,"no2_2024":16.56,"pm25_2024":7.96,"dens_bureaux_2022":29321.03,"dens_logts_2021":19143.98,"dens_pop_2025":34667.46,"dens_menages_2025":17785.05,"dist_4biens_m_2023":93.0,"haut_max_m_2026":28.35,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":3637.0,"nb_bim_h_2024":1450.0,"nb_bat_proteg_2012":0.0,"nb_cpas_2023":544.0,"nb_bim_2024":2970.0,"nb_femmes_2025":3353.0,"nb_bim_f_2024":1520.0,"nb_logts_2021":3860.0,"nb_logts_jardin_2001":280.0,"nb_menages_2025":3586.0,"nb_ventes_app_2023":45.0,"niveaux_moy_2026":3.98,"pct_pop_bus_2018":43.04,"pct_pop_metro_2018":0.0,"pct_pop_metro_chrono_2018":42.96,"pct_pop_tram_2018":100.0,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":74.69,"pct_trottoir_2014":42.39,"pct_logts_inocc_2021":15.44,"pct_locataires_2021":65.62,"pct_proprio_2021":18.94,"pct_nouv_region_2019":25.48,"pct_nouv_quartier_2019":45.56,"pct_apparts_2021":97.31,"bat_proteg_p1000_2012":0.0,"pct_cpas_2023":11.15,"pct_bim_f_2024":45.47,"pct_bim_h_2024":39.68,"pct_bim_2024":42.45,"pct_couples_enf_2025":16.87,"pct_couples_ssenf_2025":10.85,"pct_f2049_couple_ssenf_2025":12.06,"pct_f2059_couple_enf_2025":27.06,"pct_f60_couple_ssenf_2025":20.2,"pct_isol_f30p_2024":18.72,"pct_isol_f65p_2025":6.89,"pct_isol_f_m30_2024":3.65,"pct_isol_h30p_2024":27.86,"pct_isol_h65p_2025":3.68,"pct_isol_h_m30_2024":4.35,"pct_isol_30p_2025":46.77,"pct_isol_65p_2025":10.57,"pct_isol_m30_2025":7.42,"pct_isol_1829_2025":21.73,"pct_isol_parmi65_2025":48.78,"pct_logts_jardin_2001":10.26,"pct_maisons_2021":1.81,"pct_monoparent_2025":12.47,"pct_meres_seules_2025":10.49,"pct_meres_seules_2049_2025":12.06,"pct_peres_seuls_2025":1.98,"pct_impermeable_2022":93.9,"population_2025":6990.0,"prix_med_app_2023":235000.0,"rapport_masc_2025":108.47,"rapport_ps_2026":1.88079,"rev_equiv_med_2023":16602.0,"rev_equiv_moy_2023":17842.0,"rev_imp_med_decl_2023":20373.0,"rev_imp_moy_decl_2023":24008.0,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":13649.0,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.20162,"surf_bureaux_m2_2022":5912.0,"taille_menage_2025":1.94,"pct_emprise_2026":53.893,"occ_voirie_17h_2011":51.73,"occ_voirie_8h_2011":53.23,"croiss_pop_2020":-1.58,"croiss_pop_f_2020":-1.57,"croiss_pop_h_2020":-1.59,"pct_rdc_commerce_2023":8.07,"pct_vegetal_2023":11.0,"pct_veg_haute_2021":6.6}},{"code":50,"nom":"Bas Forest","geom":[[[[4.32998,50.82962],[4.33001,50.82961],[4.33027,50.82953],[4.33081,50.82931],[4.33104,50.82922],[4.33119,50.82917],[4.33163,50.82902],[4.33185,50.82898],[4.33209,50.82889],[4.33212,50.82887],[4.33229,50.82881],[4.33252,50.82873],[4.33331,50.82845],[4.33363,50.82835],[4.33381,50.82829],[4.33415,50.82817],[4.33392,50.8293],[4.335,50.83013],[4.33591,50.83083],[4.33438,50.83151],[4.33305,50.83209],[4.33265,50.83179],[4.33011,50.82972],[4.33003,50.82966],[4.32999,50.82962],[4.32998,50.82962]]]],"v":{"tp_access_min_2021":32.43,"bruit_lden_2021":68.53,"bruit_ln_2021":59.18,"no2_2024":15.75,"pm25_2024":7.9,"dens_bureaux_2022":38120.91,"dens_logts_2021":7932.02,"dens_pop_2025":16619.11,"dens_menages_2025":7226.19,"dist_4biens_m_2023":128.0,"haut_max_m_2026":43.01,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":6659.0,"nb_bim_h_2024":2442.0,"nb_bat_proteg_2012":6.0,"nb_cpas_2023":748.0,"nb_bim_2024":5127.0,"nb_femmes_2025":6503.0,"nb_bim_f_2024":2685.0,"nb_logts_2021":6282.0,"nb_logts_jardin_2001":811.0,"nb_menages_2025":5723.0,"nb_ventes_app_2023":75.0,"niveaux_moy_2026":3.43,"pct_pop_bus_2018":78.93,"pct_pop_metro_2018":0.0,"pct_pop_metro_chrono_2018":0.15,"pct_pop_tram_2018":99.96,"pct_pop_tc_2018":100.0,"pct_pop_espvert_2012":58.46,"pct_trottoir_2014":38.64,"pct_logts_inocc_2021":14.47,"pct_locataires_2021":55.4,"pct_proprio_2021":30.13,"pct_nouv_region_2019":25.04,"pct_nouv_quartier_2019":43.54,"pct_apparts_2021":94.62,"bat_proteg_p1000_2012":2.8,"pct_cpas_2023":8.55,"pct_bim_f_2024":41.18,"pct_bim_h_2024":36.52,"pct_bim_2024":38.82,"pct_couples_enf_2025":25.44,"pct_couples_ssenf_2025":11.71,"pct_f2049_couple_ssenf_2025":10.72,"pct_f2059_couple_enf_2025":33.13,"pct_f60_couple_ssenf_2025":24.45,"pct_isol_f30p_2024":16.56,"pct_isol_f65p_2025":4.74,"pct_isol_f_m30_2024":2.8,"pct_isol_h30p_2024":20.76,"pct_isol_h65p_2025":2.22,"pct_isol_h_m30_2024":3.58,"pct_isol_30p_2025":38.21,"pct_isol_65p_2025":6.95,"pct_isol_m30_2025":6.73,"pct_isol_1829_2025":17.66,"pct_isol_parmi65_2025":31.07,"pct_logts_jardin_2001":19.43,"pct_maisons_2021":4.43,"pct_monoparent_2025":12.98,"pct_meres_seules_2025":11.1,"pct_meres_seules_2049_2025":11.66,"pct_peres_seuls_2025":1.89,"pct_impermeable_2022":88.5,"population_2025":13162.0,"prix_med_app_2023":245000.0,"rapport_masc_2025":102.4,"rapport_ps_2026":1.053,"rev_equiv_med_2023":16894.0,"rev_equiv_moy_2023":18203.0,"rev_imp_med_decl_2023":22164.0,"rev_imp_moy_decl_2023":null,"rev_imp_moy_decl_cl_2023":1.0,"rev_imp_moy_hab_2023":null,"rev_imp_moy_hab_cl_2023":1.0,"superficie_km2_2024":0.79196,"surf_bureaux_m2_2022":30191.0,"taille_menage_2025":2.28,"pct_emprise_2026":37.2655,"occ_voirie_17h_2011":60.11,"occ_voirie_8h_2011":58.27,"croiss_pop_2020":-0.83,"croiss_pop_f_2020":-0.81,"croiss_pop_h_2020":-0.86,"pct_rdc_commerce_2023":6.12,"pct_vegetal_2023":18.8,"pct_veg_haute_2021":8.6}},{"code":804,"nom":"Gare du Midi","geom":[[[[4.33222,50.83433],[4.33222,50.83433],[4.33222,50.83433],[4.33222,50.83433],[4.33157,50.83382],[4.33107,50.83341],[4.33096,50.83332],[4.33089,50.83326],[4.33083,50.83319],[4.33079,50.83314],[4.33076,50.83309],[4.33074,50.83305],[4.33072,50.833],[4.3307,50.83295],[4.33068,50.83287],[4.33063,50.83262],[4.3306,50.8325],[4.33058,50.83241],[4.33057,50.83236],[4.33057,50.83236],[4.33057,50.83236],[4.33055,50.83231],[4.33051,50.83225],[4.33047,50.83219],[4.33046,50.83218],[4.3304,50.83211],[4.33035,50.83206],[4.3303,50.83202],[4.33029,50.83201],[4.33024,50.83197],[4.33,50.83179],[4.3297,50.83157],[4.32965,50.83153],[4.32959,50.8315],[4.32952,50.83146],[4.32942,50.83143],[4.32927,50.83139],[4.32883,50.83132],[4.32824,50.83121],[4.32764,50.8311],[4.32698,50.831],[4.32649,50.83086],[4.32636,50.83082],[4.32618,50.83075],[4.32611,50.83072],[4.32605,50.83069],[4.326,50.83065],[4.3259,50.83055],[4.32934,50.82981],[4.3299,50.82964],[4.32998,50.82962],[4.32999,50.82962],[4.33003,50.82966],[4.33011,50.82972],[4.33265,50.83179],[4.33305,50.83209],[4.33567,50.83398],[4.33645,50.83454],[4.33817,50.83596],[4.33875,50.83644],[4.33889,50.83656],[4.34075,50.83784],[4.34108,50.838],[4.34108,50.838],[4.34085,50.83864],[4.34077,50.83884],[4.3405,50.83958],[4.34006,50.83918],[4.33868,50.83818],[4.33616,50.83725],[4.3361,50.83723],[4.33608,50.83721],[4.33562,50.83685],[4.33365,50.83539],[4.33233,50.83436],[4.33223,50.83433],[4.33222,50.83433]]]],"v":{"tp_access_min_2021":27.41,"bruit_lden_2021":75.07,"bruit_ln_2021":65.98,"no2_2024":20.92,"pm25_2024":8.46,"dens_bureaux_2022":294618.18,"dens_logts_2021":null,"dens_pop_2025":null,"dens_menages_2025":null,"dist_4biens_m_2023":267.0,"haut_max_m_2026":43.37,"loyer_1ch_2011":null,"loyer_2ch_2011":null,"nb_hommes_2025":0.0,"nb_bim_h_2024":null,"nb_bat_proteg_2012":0.0,"nb_cpas_2023":null,"nb_bim_2024":null,"nb_femmes_2025":0.0,"nb_bim_f_2024":null,"nb_logts_2021":24.0,"nb_logts_jardin_2001":8.0,"nb_menages_2025":null,"nb_ventes_app_2023":0.0,"niveaux_moy_2026":2.8,"pct_pop_bus_2018":null,"pct_pop_metro_2018":null,"pct_pop_metro_chrono_2018":null,"pct_pop_tram_2018":null,"pct_pop_tc_2018":null,"pct_pop_espvert_2012":51.37,"pct_trottoir_2014":61.81,"pct_logts_inocc_2021":null,"pct_locataires_2021":null,"pct_proprio_2021":null,"pct_nouv_region_2019":null,"pct_nouv_quartier_2019":null,"pct_apparts_2021":null,"bat_proteg_p1000_2012":null,"pct_cpas_2023":null,"pct_bim_f_2024":null,"pct_bim_h_2024":null,"pct_bim_2024":null,"pct_couples_enf_2025":null,"pct_couples_ssenf_2025":null,"pct_f2049_couple_ssenf_2025":null,"pct_f2059_couple_enf_2025":null,"pct_f60_couple_ssenf_2025":null,"pct_isol_f30p_2024":null,"pct_isol_f65p_2025":null,"pct_isol_f_m30_2024":null,"pct_isol_h30p_2024":null,"pct_isol_h65p_2025":null,"pct_isol_h_m30_2024":null,"pct_isol_30p_2025":null,"pct_isol_65p_2025":null,"pct_isol_m30_2025":null,"pct_isol_1829_2025":null,"pct_isol_parmi65_2025":null,"pct_logts_jardin_2001":null,"pct_maisons_2021":null,"pct_monoparent_2025":null,"pct_meres_seules_2025":null,"pct_meres_seules_2049_2025":null,"pct_peres_seuls_2025":null,"pct_impermeable_2022":92.8,"population_2025":0.0,"prix_med_app_2023":null,"rapport_masc_2025":null,"rapport_ps_2026":1.18203,"rev_equiv_med_2023":null,"rev_equiv_moy_2023":null,"rev_imp_med_decl_2023":null,"rev_imp_moy_decl_2023":null,"rev_imp_moy_decl_cl_2023":null,"rev_imp_moy_hab_2023":null,"rev_imp_moy_hab_cl_2023":null,"superficie_km2_2024":0.24749,"surf_bureaux_m2_2022":72918.0,"taille_menage_2025":null,"pct_emprise_2026":36.3057,"occ_voirie_17h_2011":64.37,"occ_voirie_8h_2011":57.27,"croiss_pop_2020":null,"croiss_pop_f_2020":null,"croiss_pop_h_2020":null,"pct_rdc_commerce_2023":196.55,"pct_vegetal_2023":9.4,"pct_veg_haute_2021":4.1}}],"ind":[{"k":"dens_logts_2021","n":"Densité de logements","u":"nb/km²","y":"2021","t":"Logement"},{"k":"nb_logts_2021","n":"Nombre de logements","u":"nb","y":"2021","t":"Logement"},{"k":"nb_logts_jardin_2001","n":"Nombre de logements ayant accès à un jardin privé","u":"nb","y":"2001","t":"Logement"},{"k":"pct_logts_inocc_2021","n":"Part de logements occupés autrement ou inoccupés","u":"%","y":"2021","t":"Logement"},{"k":"pct_locataires_2021","n":"Part de logements occupés par des locataires","u":"%","y":"2021","t":"Logement"},{"k":"pct_proprio_2021","n":"Part de logements occupés par leur propriétaire","u":"%","y":"2021","t":"Logement"},{"k":"pct_apparts_2021","n":"Part des appartements dans le parc de logements","u":"%","y":"2021","t":"Logement"},{"k":"pct_logts_jardin_2001","n":"Part des logements ayant accès à un jardin privé","u":"%","y":"2001","t":"Logement"},{"k":"pct_maisons_2021","n":"Part des maisons dans le parc de logements","u":"%","y":"2021","t":"Logement"},{"k":"loyer_1ch_2011","n":"Loyer mensuel d'un logement 1 chambre","u":"€","y":"2011","t":"Prix et revenus"},{"k":"loyer_2ch_2011","n":"Loyer mensuel d'un logement 2 chambres","u":"€","y":"2011","t":"Prix et revenus"},{"k":"nb_ventes_app_2023","n":"Nombre de ventes d'appartements","u":"nb","y":"2023","t":"Prix et revenus"},{"k":"prix_med_app_2023","n":"Prix médian des ventes des appartements","u":"€","y":"2023","t":"Prix et revenus"},{"k":"rev_imp_moy_decl_2023","n":"Revenu imposable moyen par déclaration","u":"€","y":"2023","t":"Prix et revenus"},{"k":"rev_imp_moy_decl_cl_2023","n":"Revenu imposable moyen par déclaration (classes de revenus)","u":"","y":"2023","t":"Prix et revenus"},{"k":"rev_imp_moy_hab_2023","n":"Revenu imposable moyen par habitant","u":"€","y":"2023","t":"Prix et revenus"},{"k":"rev_imp_moy_hab_cl_2023","n":"Revenu imposable moyen par habitant (classes de revenus)","u":"","y":"2023","t":"Prix et revenus"},{"k":"rev_imp_med_decl_2023","n":"Revenu imposable médian des déclarations","u":"€","y":"2023","t":"Prix et revenus"},{"k":"rev_equiv_moy_2023","n":"Revenu équivalent moyen par habitant après impôt","u":"€","y":"2023","t":"Prix et revenus"},{"k":"rev_equiv_med_2023","n":"Revenu équivalent médian des habitant·es après impôt","u":"€","y":"2023","t":"Prix et revenus"},{"k":"bruit_lden_2021","n":"Bruit des transports (multi-exposition) : indicateur Lden (24h)","u":"dB (A)","y":"2021","t":"Environnement"},{"k":"bruit_ln_2021","n":"Bruit des transports (multi-exposition) : indicateur Ln (23h-7h)","u":"dB (A)","y":"2021","t":"Environnement"},{"k":"no2_2024","n":"Concentrations moyennes annuelles en dioxyde d’azote (NO2)","u":"µg / m³","y":"2024","t":"Environnement"},{"k":"pm25_2024","n":"Concentrations moyennes annuelles en particules fines de diamètre inférieur à 2.5µm (PM2.5)","u":"µg / m³","y":"2024","t":"Environnement"},{"k":"pct_pop_espvert_2012","n":"Part de la population à proximité d'un espace vert accessible au public","u":"%","y":"2012","t":"Environnement"},{"k":"pct_impermeable_2022","n":"Part des surfaces imperméables","u":"%","y":"2022","t":"Environnement"},{"k":"pct_vegetal_2023","n":"Taux de végétalisation","u":"%","y":"2023","t":"Environnement"},{"k":"pct_veg_haute_2021","n":"Taux de végétation haute","u":"%","y":"2021","t":"Environnement"},{"k":"tp_access_min_2021","n":"Accessibilité régionale au territoire en transport public","u":"min","y":"2021","t":"Mobilité"},{"k":"pct_pop_bus_2018","n":"Part de la population à proximité d'un arrêt de bus (250m)","u":"%","y":"2018","t":"Mobilité"},{"k":"pct_pop_metro_2018","n":"Part de la population à proximité d'un arrêt de métro (500m)","u":"%","y":"2018","t":"Mobilité"},{"k":"pct_pop_metro_chrono_2018","n":"Part de la population à proximité d'un arrêt de métro ou d'un tram Chrono (500m)","u":"%","y":"2018","t":"Mobilité"},{"k":"pct_pop_tram_2018","n":"Part de la population à proximité d'un arrêt de tram (400m)","u":"%","y":"2018","t":"Mobilité"},{"k":"pct_pop_tc_2018","n":"Part de la population à proximité d'un arrêt de transport en commun (3 modes confondus)","u":"%","y":"2018","t":"Mobilité"},{"k":"pct_trottoir_2014","n":"Part de la voirie dédiée au trottoir","u":"%","y":"2014","t":"Mobilité"},{"k":"occ_voirie_17h_2011","n":"Taux d'occupation de la voirie entre 17h et 18h","u":"%","y":"2011","t":"Mobilité"},{"k":"occ_voirie_8h_2011","n":"Taux d'occupation de la voirie entre 8h et 9h","u":"%","y":"2011","t":"Mobilité"},{"k":"dens_bureaux_2022","n":"Densité de bureaux","u":"m²/km²","y":"2022","t":"Bâti et équipements"},{"k":"dist_4biens_m_2023","n":"Distance moyenne d’accès aux 4 biens de base","u":"m","y":"2023","t":"Bâti et équipements"},{"k":"haut_max_m_2026","n":"Hauteur maximale des bâtiments","u":"m","y":"2026","t":"Bâti et équipements"},{"k":"nb_bat_proteg_2012","n":"Nombre de bâtiments protégés","u":"","y":"2012","t":"Bâti et équipements"},{"k":"niveaux_moy_2026","n":"Nombre moyen de niveaux","u":"nb","y":"2026","t":"Bâti et équipements"},{"k":"bat_proteg_p1000_2012","n":"Part des bâtiments protégés","u":"par 1000","y":"2012","t":"Bâti et équipements"},{"k":"rapport_ps_2026","n":"Rapport plancher/sol","u":"nb","y":"2026","t":"Bâti et équipements"},{"k":"surf_bureaux_m2_2022","n":"Surface plancher de bureaux en m²","u":"","y":"2022","t":"Bâti et équipements"},{"k":"pct_emprise_2026","n":"Taux d'emprise au sol","u":"%","y":"2026","t":"Bâti et équipements"},{"k":"pct_rdc_commerce_2023","n":"Taux de rez-de-chaussée occupés par du commerce","u":"%","y":"2023","t":"Bâti et équipements"},{"k":"dens_pop_2025","n":"Densité de population","u":"hab/km²","y":"2025","t":"Population et ménages"},{"k":"dens_menages_2025","n":"Densité des ménages privés","u":"ménages / km2","y":"2025","t":"Population et ménages"},{"k":"nb_hommes_2025","n":"Nombre d'hommes","u":"","y":"2025","t":"Population et ménages"},{"k":"nb_femmes_2025","n":"Nombre de femmes","u":"","y":"2025","t":"Population et ménages"},{"k":"nb_menages_2025","n":"Nombre de ménages privés","u":"","y":"2025","t":"Population et ménages"},{"k":"pct_nouv_region_2019","n":"Part de nouveaux habitants de la Région","u":"%","y":"2019 (2014)","t":"Population et ménages"},{"k":"pct_nouv_quartier_2019","n":"Part de nouveaux habitants du territoire","u":"%","y":"2019 (2014)","t":"Population et ménages"},{"k":"pct_couples_enf_2025","n":"Part des couples avec enfants dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_couples_ssenf_2025","n":"Part des couples sans enfants dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_f2049_couple_ssenf_2025","n":"Part des femmes de 20-49 ans en couple sans enfant (sur les femmes de 20-49 ans)","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_f2059_couple_enf_2025","n":"Part des femmes de 20-59 ans en couple avec enfant (sur les femmes de 20-59 ans)","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_f60_couple_ssenf_2025","n":"Part des femmes de 60 ans et plus en couple sans enfant (sur les femmes de 60 ans et plus)","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_f30p_2024","n":"Part des femmes isolées de 30 ans et plus dans le total des ménages privés","u":"%","y":"2024","t":"Population et ménages"},{"k":"pct_isol_f65p_2025","n":"Part des femmes isolées de 65 ans et plus dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_f_m30_2024","n":"Part des femmes isolées de moins de 30 ans dans le total des ménages privés","u":"%","y":"2024","t":"Population et ménages"},{"k":"pct_isol_h30p_2024","n":"Part des hommes isolés de 30 ans et plus dans le total des ménages privés","u":"%","y":"2024","t":"Population et ménages"},{"k":"pct_isol_h65p_2025","n":"Part des hommes isolés de 65 ans et plus dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_h_m30_2024","n":"Part des hommes isolés de moins de 30 ans dans le total des ménages privés","u":"%","y":"2024","t":"Population et ménages"},{"k":"pct_isol_30p_2025","n":"Part des isolés de 30 ans et plus dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_65p_2025","n":"Part des isolés de 65 ans et plus dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_m30_2025","n":"Part des isolés de moins de 30 ans dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_1829_2025","n":"Part des isolés parmi les 18-29 ans","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_isol_parmi65_2025","n":"Part des isolés parmi les 65 ans et plus","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_meres_seules_2025","n":"Part des mères seules avec enfants dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_meres_seules_2049_2025","n":"Part des mères seules de 20-49 ans (sur les femmes de 20-49 ans)","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_monoparent_2025","n":"Part des ménages monoparentaux dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"pct_peres_seuls_2025","n":"Part des pères seuls avec enfants dans le total des ménages privés","u":"%","y":"2025","t":"Population et ménages"},{"k":"population_2025","n":"Population totale","u":"Nombre d'habitants","y":"2025","t":"Population et ménages"},{"k":"rapport_masc_2025","n":"Rapport de masculinité","u":"%","y":"2025","t":"Population et ménages"},{"k":"superficie_km2_2024","n":"Superficie","u":"km²","y":"2024","t":"Population et ménages"},{"k":"taille_menage_2025","n":"Taille moyenne des ménages privés","u":"","y":"2025","t":"Population et ménages"},{"k":"croiss_pop_2020","n":"Taux de croissance annuel moyen de la population","u":"","y":"2020-2025","t":"Population et ménages"},{"k":"croiss_pop_f_2020","n":"Taux de croissance annuel moyen de la population féminine","u":"","y":"2020-2025","t":"Population et ménages"},{"k":"croiss_pop_h_2020","n":"Taux de croissance annuel moyen de la population masculine","u":"","y":"2020-2025","t":"Population et ménages"},{"k":"nb_bim_2024","n":"Nombre de bénéficiaires de l’intervention majorée - BIM","u":"nb","y":"2024","t":"Précarité"},{"k":"nb_cpas_2023","n":"Nombre de bénéficiaires d’un revenu du CPAS","u":"nb","y":"2023","t":"Précarité"},{"k":"nb_bim_f_2024","n":"Nombre de femmes bénéficiaires de l’intervention majorée","u":"nb","y":"2024","t":"Précarité"},{"k":"nb_bim_h_2024","n":"Nombre d’hommes bénéficiaires de l’intervention majorée","u":"nb","y":"2024","t":"Précarité"},{"k":"pct_bim_f_2024","n":"Part des bénéficiaires de l’intervention majorée dans la population de sexe féminin","u":"%","y":"2024","t":"Précarité"},{"k":"pct_bim_h_2024","n":"Part des bénéficiaires de l’intervention majorée dans la population de sexe masculin","u":"%","y":"2024","t":"Précarité"},{"k":"pct_bim_2024","n":"Part des bénéficiaires de l’intervention majorée dans la population totale","u":"%","y":"2024","t":"Précarité"},{"k":"pct_cpas_2023","n":"Part des bénéficiaires d’un revenu du CPAS (RIS ou équivalent) dans la population","u":"%","y":"2023","t":"Précarité"}],"themes":["Logement","Prix et revenus","Environnement","Mobilité","Bâti et équipements","Population et ménages","Précarité"],"sg":[11,41,42,47,48,49,50,804]};
+const fmt=new Intl.NumberFormat('fr-BE',{maximumFractionDigits:2});
+const fmt0=new Intl.NumberFormat('fr-BE',{maximumFractionDigits:0});
+const cls=['--c1','--c2','--c3','--c4','--c5'];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const byK=Object.fromEntries(D.ind.map(i=>[i.k,i]));
+let cur=null, sel=D.sg.includes(47)?47:D.feats[0].code;
+
+function fv(v,u){
+  if(v===null||v===undefined||v==='') return '—';
+  const n=+v; const s=Math.abs(n)>=1000?fmt0.format(n):fmt.format(n);
+  if(u==='%') return s+' %';
+  if(u==='€') return s+' €';
+  return u? s+' '+u : s;
+}
+function isOld(y){const m=String(y).match(/\d{4}/);return m&&+m[0]<=2016}
+
+/* projection */
+const lat0=50.83, kx=Math.cos(lat0*Math.PI/180);
+let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+function each(c,f){ if(typeof c[0]==='number') f(c); else c.forEach(x=>each(x,f)); }
+D.feats.forEach(ft=>each(ft.geom,p=>{const x=p[0]*kx,y=-p[1];minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y);}));
+const W=600, sc=W/(maxx-minx), H=Math.round((maxy-miny)*sc);
+const P=p=>[((p[0]*kx-minx)*sc).toFixed(1),((-p[1]-miny)*sc).toFixed(1)];
+const svg=document.getElementById('map');
+svg.setAttribute('viewBox',`-6 -6 ${W+12} ${H+12}`);
+const NS='http://www.w3.org/2000/svg';
+function pathOf(g){return g.map(poly=>poly.map(r=>'M'+r.map(p=>P(p).join(',')).join('L')+'Z').join('')).join('');}
+function labelPt(g){ // centroid of largest ring
+  let best=null,ba=0;
+  g.forEach(poly=>{const r=poly[0];let a=0,cx=0,cy=0;
+    for(let i=0;i<r.length-1;i++){const [x1,y1]=P(r[i]).map(Number),[x2,y2]=P(r[i+1]).map(Number);const f=x1*y2-x2*y1;a+=f;cx+=(x1+x2)*f;cy+=(y1+y2)*f;}
+    a/=2; if(Math.abs(a)>ba){ba=Math.abs(a);best=[cx/(6*a),cy/(6*a)];}});
+  return best;
+}
+const shapes={};
+D.feats.forEach(ft=>{
+  const p=document.createElementNS(NS,'path');
+  p.setAttribute('d',pathOf(ft.geom));p.setAttribute('class','q');p.setAttribute('tabindex','0');
+  p.setAttribute('role','button');
+  p.addEventListener('click',()=>select(ft.code));
+  p.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(ft.code);}});
+  const t=document.createElementNS(NS,'title');p.appendChild(t);
+  svg.appendChild(p);shapes[ft.code]={p,t};
+});
+D.feats.forEach(ft=>{
+  if(!D.sg.includes(ft.code))return;const c=labelPt(ft.geom);if(!c)return;
+  const t=document.createElementNS(NS,'text');
+  t.setAttribute('x',c[0].toFixed(1));t.setAttribute('y',c[1].toFixed(1));t.setAttribute('text-anchor','middle');
+  t.setAttribute('class','lbl'+(D.sg.includes(ft.code)?'':' out'));
+  const short=ft.nom.split(' - ')[0];
+  t.textContent=short.length>16?short.slice(0,15)+'…':short;
+  svg.appendChild(t);
+});
+
+/* controls */
+const selEl=document.getElementById('ind'), chips=document.getElementById('chips');
+D.themes.forEach(th=>{
+  const og=document.createElement('optgroup');og.label=th;
+  D.ind.filter(i=>i.t===th).forEach(i=>{const o=document.createElement('option');o.value=i.k;o.textContent=`${i.n} (${i.y})`;og.appendChild(o);});
+  selEl.appendChild(og);
+  const b=document.createElement('button');b.className='chip';b.textContent=th;b.dataset.t=th;
+  b.addEventListener('click',()=>{const first=D.ind.find(i=>i.t===th);setInd(first.k);});
+  chips.appendChild(b);
+});
+selEl.addEventListener('change',()=>setInd(selEl.value));
+const step=d=>{const i=D.ind.findIndex(x=>x.k===cur);setInd(D.ind[(i+d+D.ind.length)%D.ind.length].k);};
+document.getElementById('prev').onclick=()=>step(-1);
+document.getElementById('next').onclick=()=>step(1);
+
+function breaks(vals){
+  const s=[...vals].sort((a,b)=>a-b);if(!s.length)return[];
+  const q=f=>s[Math.min(s.length-1,Math.floor(f*(s.length)))];
+  return [q(.2),q(.4),q(.6),q(.8)];
+}
+function setInd(k){
+  cur=k;const I=byK[k];selEl.value=k;
+  try{localStorage.setItem('mq_ind',k);}catch(e){}
+  chips.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===I.t));
+  document.getElementById('t-map').textContent=I.n;
+  document.getElementById('m-map').innerHTML=`${I.u?('Unité : '+I.u+' · '):''}Année : <span class="${isOld(I.y)?'old':''}">${I.y}</span>`;
+  const vals=D.feats.map(f=>f.v[k]).filter(v=>v!==null&&v!==undefined&&v!=='').map(Number);
+  const br=breaks(vals);
+  const uniq=[...new Set(br)];
+  const colorOf=v=>{if(v===null||v===undefined||v==='')return css('--nodata');let i=0;while(i<br.length&&+v>br[i])i++;return css(cls[i]);};
+  D.feats.forEach(f=>{const s=shapes[f.code];s.p.style.fill=colorOf(f.v[k]);s.t.textContent=`${f.nom} : ${fv(f.v[k],I.u)}`;s.p.setAttribute('aria-label',`${f.nom} : ${fv(f.v[k],I.u)}`);});
+  // legend
+  const lg=document.getElementById('legend');lg.innerHTML='';
+  if(vals.length){
+    const mn=Math.min(...vals),mx=Math.max(...vals);
+    const edges=[mn,...br,mx];
+    for(let i=0;i<5;i++){
+      if(i>0&&edges[i]===edges[i+1]&&edges[i]===edges[i-1])continue;
+      const sp=document.createElement('span');
+      sp.innerHTML=`<i class="sw" style="background:${css(cls[i])}"></i>${fv(edges[i],'')} – ${fv(edges[i+1],'')}`;
+      lg.appendChild(sp);
+    }
+  }
+  const nd=D.feats.length-vals.length;
+  if(nd){const sp=document.createElement('span');sp.innerHTML=`<i class="sw" style="background:${css('--nodata')}"></i>pas de donnée (${nd})`;lg.appendChild(sp);}
+  // ranking
+  const rk=document.getElementById('rank');rk.innerHTML='';
+  const mx=vals.length?Math.max(...vals.map(Math.abs)):1;
+  [...D.feats].sort((a,b)=>{const x=a.v[k],y=b.v[k];const ex=x===null||x===''||x===undefined,ey=y===null||y===''||y===undefined;if(ex&&ey)return 0;if(ex)return 1;if(ey)return -1;return y-x;})
+   .forEach(f=>{
+     const li=document.createElement('li');li.tabIndex=0;if(f.code===sel)li.className='sel';
+     const v=f.v[k];const w=(v===null||v===''||v===undefined)?0:Math.max(2,Math.abs(v)/mx*100);
+     li.innerHTML=`<div class="name"><b>${f.nom} ${D.sg.includes(f.code)?'<span class="tag">● SG</span>':''}</b><div class="bar" style="width:${w}%;background:${colorOf(v)}"></div></div><div class="val">${fv(v,I.u)}</div>`;
+     li.onclick=()=>select(f.code);li.onkeydown=e=>{if(e.key==='Enter')select(f.code);};
+     rk.appendChild(li);
+   });
+  renderSheet();
+}
+function select(code){
+  sel=code;
+  Object.entries(shapes).forEach(([c,s])=>s.p.classList.toggle('sel',+c===code));
+  const s=shapes[code];if(s)svg.appendChild(s.p); // bring outline to front
+  svg.querySelectorAll('text').forEach(t=>svg.appendChild(t));
+  document.querySelectorAll('#rank li').forEach((li,i)=>{});
+  setInd(cur);
+}
+function renderSheet(){
+  const f=D.feats.find(x=>x.code===sel);if(!f)return;
+  document.getElementById('t-sheet').textContent=`Fiche : ${f.nom}`;
+  document.getElementById('m-sheet').textContent=`Quartier n° ${f.code}${D.sg.includes(f.code)?' · couvre une part de Saint-Gilles':' · ne touche Saint-Gilles qu’en lisière'} · cliquez sur une ligne pour la cartographier`;
+  const g=document.getElementById('sheet');g.innerHTML='';
+  D.themes.forEach(th=>{
+    const box=document.createElement('div');box.className='grp';
+    box.innerHTML=`<h3>${th}</h3>`;
+    D.ind.filter(i=>i.t===th).forEach(i=>{
+      const r=document.createElement('div');r.className='row';r.tabIndex=0;
+      if(i.k===cur)r.style.color=css('--accent');
+      r.innerHTML=`<span>${i.n} <small class="${isOld(i.y)?'old':''}">${i.y}</small></span><span class="v">${fv(f.v[i.k],i.u)}</span>`;
+      r.onclick=()=>{setInd(i.k);window.scrollTo({top:0,behavior:'smooth'});};
+      r.onkeydown=e=>{if(e.key==='Enter')r.onclick();};
+      box.appendChild(r);
+    });
+    g.appendChild(box);
+  });
+}
+let start='prix_med_app_2023';
+try{const s=localStorage.getItem('mq_ind');if(s&&byK[s])start=s;}catch(e){}
+if(!byK[start])start=D.ind[0].k;
+cur=start;select(sel);
+
+/* ===== Tabs ===== */
+function route(){
+  const v=location.hash==='#quartiers'?'quartiers':'parcelles';
+  document.getElementById('view-parcelles').hidden=v!=='parcelles';
+  document.getElementById('view-quartiers').hidden=v!=='quartiers';
+  document.getElementById('tab-parcelles').setAttribute('aria-selected',v==='parcelles');
+  document.getElementById('tab-quartiers').setAttribute('aria-selected',v==='quartiers');
+  if(v==='parcelles')initParcels();
+}
+window.addEventListener('hashchange',route);
+
+/* ===== Parcel view ===== */
+const NOISE=[[0,'#3a9a5b'],[40,'#7cc36b'],[45,'#c6e07a'],[50,'#f3e27a'],[55,'#f5b75d'],[60,'#ea7f45'],[65,'#d24a3a'],[70,'#a3243a'],[75,'#6b1446']];
+const ECART=[[0,'#e8e3d6'],[5,'#c9d8c5'],[10,'#94c2a6'],[15,'#5fa38a'],[20,'#2f7f73'],[25,'#14555a']];
+const ORI=['N','NE','E','SE','S','SO','O','NO'];
+const ORIC={N:'#4a6fa5',NE:'#6aa0c7',E:'#e6c35c',SE:'#f0a04b',S:'#e0603c',SO:'#c9485b',O:'#8f5aa8',NO:'#5b5f9e'};
+const ORIL={N:'nord',NE:'nord-est',E:'est',SE:'sud-est',S:'sud',SO:'sud-ouest',O:'ouest',NO:'nord-ouest'};
+const EMP=[[0,'#e8f1e4'],[40,'#c4dcc0'],[60,'#9cc3a7'],[75,'#6c9c8c'],[90,'#3f6f6a']];
+const LIB=[[0,'#f1ece0'],[15,'#d8e6c2'],[40,'#a9d08e'],[80,'#6fb36a'],[150,'#2f8a4c']];
+const FAC=[[0,'#efe9f3'],[5,'#d2c4e2'],[7,'#a993cc'],[10,'#7d64ad'],[15,'#4e3a87']];
+const g8=(p,i)=>p[8]?p[8][i]:null;
+const numLegend=(tab,u)=>tab.map(([t,c],i)=>[c,tab[i+1]?`${t}–${tab[i+1][0]} ${u}`:`≥ ${t} ${u}`]);
+const PL=[
+ {id:'jr',grp:'Bruit',n:'Jour, côté rue',d:'Lden (24 h) — classe la plus bruyante qui touche la parcelle',v:p=>p[2],col:v=>ncls(v,NOISE)},
+ {id:'jc',grp:'Bruit',n:'Jour, côté calme',d:'Lden (24 h) — classe la moins bruyante qui touche la parcelle',v:p=>p[1],col:v=>ncls(v,NOISE)},
+ {id:'nr',grp:'Bruit',n:'Nuit, côté rue',d:'Ln (23 h–7 h) — classe la plus bruyante',v:p=>p[4],col:v=>ncls(v,NOISE)},
+ {id:'nc',grp:'Bruit',n:'Nuit, côté calme',d:'Ln (23 h–7 h) — classe la moins bruyante',v:p=>p[3],col:v=>ncls(v,NOISE)},
+ {id:'ec',grp:'Bruit',n:'Écart rue / calme',d:'Différence en dB entre le côté rue et le côté calme, le jour',v:p=>p[5],col:v=>ncls(v,ECART),leg:()=>ECART.map(([t,c],i)=>[c,ECART[i+1]?`${t}–${ECART[i+1][0]-5} dB`:`≥ ${t} dB`])},
+ {id:'oj',grp:'Bâti',n:'Orientation du jardin',d:'Direction de l’espace non bâti (jardin, cour) vu depuis le bâtiment — calculée sur UrbIS',v:p=>g8(p,6),col:v=>v?ORIC[v]:null,leg:()=>ORI.map(o=>[ORIC[o],ORIL[o]])},
+ {id:'em',grp:'Bâti',n:'Emprise bâtie',d:'Part de la parcelle couverte par des bâtiments',v:p=>g8(p,3),col:v=>ncls(v,EMP),leg:()=>numLegend(EMP,'%')},
+ {id:'li',grp:'Bâti',n:'Espace non bâti',d:'Surface de la parcelle sans bâtiment (jardin, cour, allée)',v:p=>g8(p,2),col:v=>ncls(v,LIB),leg:()=>numLegend(LIB,'m²')},
+ {id:'fa',grp:'Bâti',n:'Largeur de façade',d:'Longueur de limite de la parcelle donnant sur l’espace public (rue)',v:p=>g8(p,4),col:v=>v?ncls(v,FAC):null,leg:()=>numLegend(FAC,'m')},
+ {id:'an',grp:'Bâti',n:'Parcelles d’angle',d:'Parcelle bordée par deux rues formant un angle',v:p=>p[8]?p[8][7]:null,col:v=>v===1?'#c9485b':(v===0?'#d9ddd8':null),leg:()=>[['#c9485b','angle'],['#d9ddd8','pas d’angle']]}];
+
+const g9=(p,i)=>p[9]?p[9][i]:null;
+const BC=[[0,'#f3efe2'],[1.6,'#e8cf9a'],[2.1,'#d9a160'],[2.6,'#b8693c'],[3.2,'#7a3b2a']];
+const FLD={0:'#e9ece8',1:'#a9cfe8',2:'#4f97c9',3:'#1c4f8a'};const FLDL={0:'pas d’aléa',1:'aléa faible (1 000 ans)',2:'aléa moyen (100 ans)',3:'aléa élevé (25 ans)'};
+const SOLC={'0':'#e7a23c','1':'#8cc084','2':'#d6d36a','3':'#d9714a','4':'#9b2c3a'};
+const SOLL={'0':'potentiellement polluée (activité à risque, pas encore étudiée)','1':'non polluée','2':'légèrement polluée, sans risque','3':'polluée, sans risque (risque tolérable)','4':'polluée, en cours d’étude ou de traitement'};
+const solTxt=c=>c?c.split('+').map(x=>`cat. ${x} : ${SOLL[x]||''}`).join(' + '):'';
+const solCol=c=>c?SOLC[c.split('+').pop()]:'#eef0ec';
+const DIST=[[0,'#2f8a4c'],[100,'#7fbf6a'],[200,'#d9d36a'],[300,'#e89a4c'],[500,'#c2473a']];
+const DIST2=[[0,'#2f8a4c'],[200,'#7fbf6a'],[350,'#d9d36a'],[500,'#e89a4c'],[800,'#c2473a']];
+const NP=[[0,'#f1f1ec'],[1,'#d6d0e8'],[2,'#a99bd0'],[4,'#7a64b0'],[7,'#4b3787']];
+PL.push(
+ {id:'bc',grp:'Environnement',n:'Pollution trafic (black carbon)',d:'Concentration en black carbon de la rue la plus exposée qui borde la parcelle (µg/m³) — Bruxelles Environnement',v:p=>g9(p,4),col:v=>ncls(v,BC),leg:()=>numLegend(BC,'µg/m³')},
+ {id:'fl',grp:'Environnement',n:'Inondation',d:'Aléa d’inondation 2025 le plus élevé touchant la parcelle — Bruxelles Environnement',v:p=>g9(p,0),col:v=>v===null?null:FLD[v],leg:()=>[0,1,2,3].map(k=>[FLD[k],FLDL[k]])},
+ {id:'so',grp:'Environnement',n:'État du sol',d:'Catégorie à l’inventaire de l’état du sol — Bruxelles Environnement (gris clair = hors inventaire)',v:p=>p[9]?(g9(p,2)||''):null,col:v=>v===null?null:solCol(v),leg:()=>[['#eef0ec','hors inventaire'],...['0','1','2','3','4'].map(k=>[SOLC[k],'cat. '+k])]},
+ {id:'ve',grp:'Proximité',n:'Espace vert le plus proche',d:'Distance à vol d’oiseau jusqu’à un espace vert public (> 300 m²)',v:p=>g9(p,7),col:v=>ncls(v,DIST),leg:()=>numLegend(DIST,'m')},
+ {id:'pa',grp:'Proximité',n:'Parc d’au moins 1 ha',d:'Distance à vol d’oiseau jusqu’au parc public d’au moins 1 hectare le plus proche',v:p=>g9(p,10),col:v=>ncls(v,DIST2),leg:()=>numLegend(DIST2,'m')},
+ {id:'ic',grp:'Proximité',n:'Itinéraire cyclable régional',d:'Distance à vol d’oiseau jusqu’à l’ICR le plus proche — Bruxelles Mobilité',v:p=>g9(p,13),col:v=>ncls(v,DIST),leg:()=>numLegend(DIST,'m')},
+ {id:'vp',grp:'Proximité',n:'Stationnement vélo',d:'Distance au stationnement vélo en voirie le plus proche (arceaux, drop-off) — Bruxelles Mobilité',v:p=>g9(p,14),col:v=>ncls(v,DIST),leg:()=>numLegend(DIST,'m')},
+ {id:'pe',grp:'Permis',n:'Permis d’urbanisme',d:'Nombre de demandes de permis d’urbanisme sur la parcelle (toutes années) — urban.brussels, Nova',v:p=>g9(p,16),col:v=>ncls(v,NP),leg:()=>[['#f1f1ec','aucun'],['#d6d0e8','1'],['#a99bd0','2–3'],['#7a64b0','4–6'],['#4b3787','7 et plus']]}
+);
+const UN=[[1,'#eef1f6'],[2,'#c9d5ea'],[3,'#94acd6'],[5,'#5b7fbd'],[10,'#2d4f8e']];
+PL.splice(PL.findIndex(x=>x.id==='oj'),0,{id:'un',grp:'Bâti',n:'Unités adressées (boîtes)',d:'Nombre de boîtes (logements, commerces…) aux adresses de la parcelle — UrbIS Adresses. Approximation du nombre de logements.',v:p=>p[10]?p[10][0]:null,col:v=>ncls(v,UN),leg:()=>[['#eef1f6','1'],['#c9d5ea','2'],['#94acd6','3–4'],['#5b7fbd','5–9'],['#2d4f8e','10 et plus']]});
+let PERMITS=null;fetch('permis_parcelles.json').then(r=>r.json()).then(d=>{PERMITS=d;if(psel)card(psel);}).catch(()=>{PERMITS={};});
+
+NOISE.leg=()=>NOISE.map(([t,c],i)=>[c,i===NOISE.length-1?'≥ '+t+' dB':band(t)]);
+let PD=null,pk='jr',psel=null,pinit=false,calmOnly=false;
+const pc=document.getElementById('pmap'),ctx=pc.getContext('2d');
+let view={s:1,tx:0,ty:0},base=null,dpr=1;
+const ncls=(v,tab)=>{if(v===null||v===undefined)return null;let c=tab[0][1];for(const [t,col] of tab)if(v>=t)c=col;return c;};
+const band=v=>v===null||v===undefined?'—':(v===0?'< 40 dB':`${v}–${v+5} dB`);
+function isCalm(p){return p[1]!==null&&p[1]<50&&p[3]!==null&&p[3]<45;}
+function initParcels(){
+  if(pinit)return;pinit=true;
+  const ch=document.getElementById('pchips');
+  const ps=document.getElementById('psel');let og=null,lg0=null;PL.forEach(L=>{if(L.grp!==lg0){lg0=L.grp;og=document.createElement('optgroup');og.label=L.grp;ps.appendChild(og);}const o=document.createElement('option');o.value=L.id;o.textContent=L.n;og.appendChild(o);});ps.onchange=()=>{pk=ps.value;pRender();};
+  let lastG=null;PL.forEach(L=>{if(L.grp!==lastG){lastG=L.grp;const t=document.createElement('span');t.className='cgrp';t.textContent=L.grp;ch.appendChild(t);}const b=document.createElement('button');b.className='chip';b.textContent=L.n;b.dataset.k=L.id;b.onclick=()=>{pk=L.id;pRender();};ch.appendChild(b);});
+  document.getElementById('calm').onchange=e=>{calmOnly=e.target.checked;draw();};document.getElementById('streets').onchange=()=>draw();
+  fetch('parcelles.json').then(r=>r.json()).then(d=>{
+    PD=d.map(p=>{const rings=p[7];let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;
+      rings.forEach(r=>{for(let i=0;i<r.length;i+=2){const x=r[i]*kx,y=-r[i+1];if(x<mnx)mnx=x;if(x>mxx)mxx=x;if(y<mny)mny=y;if(y>mxy)mxy=y;}});
+      return {p,bb:[mnx,mny,mxx,mxy]};});
+    let a=1e9,b=1e9,c=-1e9,e=-1e9;PD.forEach(o=>{a=Math.min(a,o.bb[0]);b=Math.min(b,o.bb[1]);c=Math.max(c,o.bb[2]);e=Math.max(e,o.bb[3]);});
+    base={x0:a,y0:b,w:c-a,h:e-b};
+    document.getElementById('ploading').remove();setTimeout(renderTray,0);
+    resize();pRender();
+  }).catch(()=>{document.getElementById('ploading').textContent='Impossible de charger les parcelles. Rechargez la page.';});
+  window.addEventListener('resize',resize);
+}
+let fitted=false;function resize(){if(!base)return;const ow=pc.width,oh=pc.height;dpr=window.devicePixelRatio||1;const r=pc.getBoundingClientRect();const nw=Math.round(r.width*dpr),nh=Math.round(r.height*dpr);if(fitted&&nw===ow&&nh===oh)return;pc.width=nw;pc.height=nh;
+  if(!fitted){fitted=true;fit();return;}
+  const cx=(ow/2-view.tx)/view.s,cy=(oh/2-view.ty)/view.s;view.s*=nw/ow;view.tx=nw/2-cx*view.s;view.ty=nh/2-cy*view.s;draw();}
+function fit(){const W=pc.width,H=pc.height,s=Math.min(W/base.w,H/base.h)*0.95;view={s,tx:(W-base.w*s)/2-base.x0*s,ty:(H-base.h*s)/2-base.y0*s};draw();}
+function pRender(){
+  const L=PL.find(x=>x.id===pk);
+  document.querySelectorAll('#pchips .chip').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===pk));const ps2=document.getElementById('psel');if(ps2)ps2.value=pk;
+  document.getElementById('t-pmap').textContent=L.n;document.getElementById('m-pmap').textContent=L.d;
+  const lg=document.getElementById('plegend');lg.innerHTML='';
+  (L.leg?L.leg():NOISE.leg()).forEach(([c,t])=>lg.insertAdjacentHTML('beforeend',`<span><i class="sw" style="background:${c}"></i>${t}</span>`));
+  lg.insertAdjacentHTML('beforeend',`<span><i class="sw" style="background:${css('--nodata')}"></i>pas de donnée</span>`);
+  draw();if(psel)card(psel);
+}
+function draw(){
+  if(!PD)return;const W=pc.width,H=pc.height;ctx.clearRect(0,0,W,H);
+  const {s,tx,ty}=view;const line=css('--surface');
+  ctx.lineWidth=Math.max(.3,Math.min(1.2,s/40000))*dpr;ctx.strokeStyle=line;ctx.lineJoin='round';
+  for(const o of PD){
+    const b=o.bb;if(b[2]*s+tx<0||b[0]*s+tx>W||b[3]*s+ty<0||b[1]*s+ty>H)continue;
+    const p=o.p;const L=PL.find(x=>x.id===pk);let col=L.col(L.v(p));
+    if(!col)col=css('--nodata');
+    ctx.globalAlpha=calmOnly&&!isCalm(p)?0.12:1;
+    ctx.beginPath();
+    for(const r of p[7]){for(let i=0;i<r.length;i+=2){const x=r[i]*kx*s+tx,y=-r[i+1]*s+ty;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.closePath();}
+    ctx.fillStyle=col;ctx.fill('evenodd');ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  if(psel){
+    const path=new Path2D();let sx=0,sy=0,n=0;
+    for(const r of psel[7]){for(let i=0;i<r.length;i+=2){const x=r[i]*kx*s+tx,y=-r[i+1]*s+ty;i?path.lineTo(x,y):path.moveTo(x,y);sx+=x;sy+=y;n++;}path.closePath();}
+    // dim everything else slightly
+    ctx.save();ctx.fillStyle='rgba(20,24,22,0.18)';ctx.fillRect(0,0,W,H);ctx.restore();
+    // redraw selected parcel in its own colour
+    const L=PL.find(x=>x.id===pk);ctx.fillStyle=L.col(L.v(psel))||css('--nodata');ctx.fill(path,'evenodd');
+    ctx.lineJoin='round';
+    ctx.lineWidth=8*dpr;ctx.strokeStyle='#ffffff';ctx.stroke(path);
+    ctx.lineWidth=3.5*dpr;ctx.strokeStyle='#e0157a';ctx.stroke(path);
+    // ring marker, visible even when zoomed out
+    const cx=sx/n,cy=sy/n,R=16*dpr;
+    ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.lineWidth=6*dpr;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.lineWidth=3*dpr;ctx.strokeStyle='#e0157a';ctx.stroke();
+  }
+  drawStreets();
+}
+
+/* ===== Street labels ===== */
+let RUES=null;fetch('rues.json').then(r=>r.json()).then(d=>{RUES=d;draw();}).catch(()=>{});
+function drawStreets(){
+  if(!RUES||!document.getElementById('streets').checked)return;const {s,tx,ty}=view;const mpp=111320*dpr/s;
+  const maxL=mpp<1.3?2:(mpp<2.6?1:(mpp<5.5?0:-1));if(maxL<0)return;
+  const W=pc.width,H=pc.height,fs=Math.round((mpp<1.3?12:11)*dpr);
+  ctx.save();ctx.font=`600 ${fs}px ${getComputedStyle(document.body).fontFamily}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.lineJoin='round';ctx.lineWidth=3.5*dpr;ctx.strokeStyle='rgba(255,255,255,.92)';ctx.fillStyle='#1d2421';
+  const boxes=[];
+  const order=RUES.filter(l=>l[4]<=maxL).sort((a,b)=>a[4]-b[4]);
+  for(const [n,lon,lat,ang,lv] of order){
+    const x=lon*kx*s+tx,y=-lat*s+ty;if(x<-50||x>W+50||y<-20||y>H+20)continue;
+    const w=ctx.measureText(n).width,h=fs*1.2,r=ang*Math.PI/180,c=Math.abs(Math.cos(r)),si=Math.abs(Math.sin(r));
+    const bw=w*c+h*si,bh=w*si+h*c,b=[x-bw/2,y-bh/2,x+bw/2,y+bh/2];
+    if(boxes.some(o=>!(b[2]<o[0]||b[0]>o[2]||b[3]<o[1]||b[1]>o[3])))continue;boxes.push(b);
+    ctx.translate(x,y);ctx.rotate(r);ctx.strokeText(n,0,0);ctx.fillText(n,0,0);ctx.setTransform(1,0,0,1,0,0);
+  }
+  ctx.restore();
+}
+function hit(cx,cy){
+  const {s,tx,ty}=view;const X=(cx-tx)/s,Y=(cy-ty)/s;
+  for(const o of PD){const b=o.bb;if(X<b[0]||X>b[2]||Y<b[1]||Y>b[3])continue;
+    let ins=false;for(const r of o.p[7]){for(let i=0,j=r.length-2;i<r.length;j=i,i+=2){const xi=r[i]*kx,yi=-r[i+1],xj=r[j]*kx,yj=-r[j+1];if((yi>Y)!==(yj>Y)&&X<(xj-xi)*(Y-yi)/(yj-yi)+xi)ins=!ins;}}
+    if(ins)return o.p;}
+  return null;
+}
+function card(p){document.getElementById('zsel').disabled=false;
+  const q=D.feats.find(f=>f.code===p[6]);
+  const pill=(v,tab)=>{const c=ncls(v,tab)||css('--nodata');return `<span class="pill" style="background:${c}">${band(v)}</span>`;};
+  const who=(v,lim)=>v===null?'':(v>=lim?' <small class="old">au-dessus du repère OMS</small>':'');
+  let h='<div class="phead">';if(p[10]){h+=`<p class="addr">${p[10][1].join(' · ')}${p[10][2]>p[10][1].length?' …':''}</p>`;}
+  h+=`<p class="capa">Parcelle ${p[0]}</p></div>`;
+  {const inC=CMP.includes(p[0]);h+=`<button class="cmpBtn ${inC?'':'primary'}" onclick="toggleCmp('${p[0]}')">${inC?'✓ Dans la comparaison (retirer)':'＋ Ajouter à la comparaison'}</button>`;}
+  if(p[10]){const u=p[10];h+=`<div class="kv"><span>Unités adressées (boîtes)</span><span>${u[0]}</span></div>${u[3].length?`<p class="meta">Boîtes : ${u[3].join(', ')}. RC = rez-de-chaussée, SS = sous-sol, TM = toutes boîtes. Approximation : une boîte peut être un commerce, et des logements non déclarés n’ont pas de boîte.</p>`:''}`;}
+  h+=`<h3>Bruit le jour (24 h)</h3><div class="kv"><span>Côté rue</span><span>${pill(p[2],NOISE)}${who(p[2],53)}</span><span>Côté calme</span><span>${pill(p[1],NOISE)}${who(p[1],53)}</span><span>Écart</span><span>${p[5]===null?'—':p[5]+' dB'}</span></div>`;
+  h+=`<h3>Bruit la nuit (23 h–7 h)</h3><div class="kv"><span>Côté rue</span><span>${pill(p[4],NOISE)}${who(p[4],45)}</span><span>Côté calme</span><span>${pill(p[3],NOISE)}${who(p[3],45)}</span></div>`;
+  if(p[8]){const b=p[8];h+=`<h3>Parcelle et bâti</h3><div class="kv"><span>Surface de la parcelle</span><span>${fmt0.format(b[0])} m²</span><span>Surface bâtie au sol</span><span>${fmt0.format(b[1])} m² (${b[3]} %)</span><span>Espace non bâti</span><span>${fmt0.format(b[2])} m²</span><span>Largeur sur rue</span><span>${b[4]?fmt.format(b[4])+' m':'parcelle sans accès direct'}</span><span>Façade avant tournée vers</span><span>${b[5]?ORIL[b[5]]:'—'}</span><span>Jardin ou cour tourné vers</span><span>${b[6]?ORIL[b[6]]:'pas d’espace libre significatif'}</span><span>Parcelle d’angle</span><span>${b[7]?'oui':'non'}</span></div>`;}
+  h+=`<p class="meta">${isCalm(p)?'Cette parcelle a un côté calme, de jour comme de nuit.':'Pas de côté vraiment calme selon le modèle.'}</p>`;
+  if(p[9]){const e=p[9];
+    h+=`<h3>Environnement</h3><div class="kv">
+      <span>Pollution trafic (black carbon)</span><span>${e[4]===null?'—':fmt.format(e[4])+' µg/m³'}</span>
+      <span>Inondation</span><span>${e[0]?FLDL[e[0]]+` (${e[1]} % de la parcelle)`:'pas d’aléa'}</span>
+      <span>État du sol</span><span>${e[2]?solTxt(e[2]):'hors inventaire'}</span></div>`;
+    if(e[3])h+=`<p class="meta"><a href="http://x622.ibgebim.be/invsol-ficheIdentification/id.php?ID=${e[3]}&Lng=FR&type=B">Fiche technique de l’inventaire du sol →</a></p>`;
+    h+=`<h3>À proximité (à vol d’oiseau)</h3><div class="kv">
+      <span>Espace vert le plus proche</span><span>${e[6]||'—'} · ${e[7]} m</span>
+      <span>Parc d’au moins 1 ha</span><span>${e[9]||'—'} · ${e[10]} m</span>
+      <span>Itinéraire cyclable régional</span><span>ICR ${e[12]} · ${e[13]} m</span>
+      <span>Stationnement vélo le plus proche</span><span>${e[14]} m (${e[15]} à moins de 150 m)</span></div>`;
+    const L=PERMITS?(PERMITS[p[0]]||[]):null;
+    h+=`<h3>Permis d’urbanisme sur la parcelle</h3>`;
+    if(L===null)h+='<p class="meta">Chargement…</p>';
+    else if(!L.length)h+='<p class="meta">Aucune demande de permis enregistrée.</p>';
+    else{h+='<div class="permits">'+L.slice(0,12).map(r=>{const st=r.s||'statut inconnu';const cl=/Octroy/.test(st)?'ok':(/Refus/.test(st)?'ko':'');
+      const hs=(r.he||r.hp)?`<small>Logement : ${r.he?fmt0.format(r.he)+' m² existants':''}${r.he&&r.hp?' → ':''}${r.hp?fmt0.format(r.hp)+' m² projetés':''}</small>`:'';
+      return `<div class="pm"><div class="pmh"><span>${r.d?r.d.slice(0,4):'—'}</span><span class="st ${cl}">${st}</span></div><div>${r.o||'(objet non renseigné)'}</div><small>${r.ad} · ${r.r||''}</small>${hs}</div>`;}).join('')+'</div>';
+      if(L.length>12)h+=`<p class="meta">… et ${L.length-12} demandes plus anciennes.</p>`;
+      h+='<p class="meta">Détail complet de chaque dossier sur openpermits.brussels (recherche par référence).</p>';}
+  }
+  if(q){const g=k=>{const I=byK[k];return I?fv(q.v[k],I.u):'—';};
+    h+=`<h3>Son quartier : ${q.nom}</h3><div class="kv">
+      <span>Prix médian d'un appartement (2023)</span><span>${g('prix_med_app_2023')}</span>
+      <span>Ventes d'appartements (2023)</span><span>${g('nb_ventes_app_2023')}</span>
+      <span>Logements occupés par le propriétaire (2021)</span><span>${g('pct_proprio_2021')}</span>
+      <span>Revenu médian après impôt (2023)</span><span>${g('rev_equiv_med_2023')}</span>
+      <span>Végétalisation (2023)</span><span>${g('pct_vegetal_2023')}</span>
+      <span>Proche d'un espace vert (2012)</span><span>${g('pct_pop_espvert_2012')}</span></div>
+      <p><a href="#quartiers" onclick="setTimeout(()=>select(${q.code}),0)">Voir les 89 indicateurs du quartier →</a></p>`;}
+  document.getElementById('pcard').innerHTML=h;
+}
+/* pan / zoom / tap */
+const ptr=new Map();let moved=false,last=null,pinch=null;
+function zoomAt(f,cx,cy){view.tx=cx-(cx-view.tx)*f;view.ty=cy-(cy-view.ty)*f;view.s*=f;draw();}
+const loc=e=>{const r=pc.getBoundingClientRect();return [(e.clientX-r.left)*dpr,(e.clientY-r.top)*dpr];};
+pc.addEventListener('pointerdown',e=>{pc.setPointerCapture(e.pointerId);ptr.set(e.pointerId,loc(e));moved=false;last=loc(e);
+  if(ptr.size===2){const [a,b]=[...ptr.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1])};}});
+pc.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;const p=loc(e);ptr.set(e.pointerId,p);
+  if(ptr.size===2&&pinch){const [a,b]=[...ptr.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);zoomAt(d/pinch.d,(a[0]+b[0])/2,(a[1]+b[1])/2);pinch.d=d;moved=true;return;}
+  if(ptr.size===1){const dx=p[0]-last[0],dy=p[1]-last[1];if(Math.abs(dx)+Math.abs(dy)>3*dpr)moved=true;if(moved){view.tx+=dx;view.ty+=dy;draw();}last=p;}});
+pc.addEventListener('pointerup',e=>{const p=loc(e);ptr.delete(e.pointerId);if(ptr.size<2)pinch=null;
+  if(!moved&&PD){const h=hit(p[0],p[1]);if(h){psel=h;card(h);draw();if(window.matchMedia('(max-width:820px)').matches)document.getElementById('t-pcard').scrollIntoView({behavior:'smooth',block:'start'});}}});
+pc.addEventListener('pointercancel',e=>{ptr.delete(e.pointerId);pinch=null;});
+pc.addEventListener('wheel',e=>{e.preventDefault();const p=loc(e);zoomAt(e.deltaY<0?1.25:0.8,p[0],p[1]);},{passive:false});
+document.getElementById('zin').onclick=()=>zoomAt(1.5,pc.width/2,pc.height/2);
+document.getElementById('zout').onclick=()=>zoomAt(1/1.5,pc.width/2,pc.height/2);
+document.getElementById('zreset').onclick=fit;
+route();
+
+/* ===== Comparison ===== */
+let CMP=[];const LETTERS=['A','B','C'];
+try{CMP=JSON.parse(localStorage.getItem('sg_cmp')||'[]');}catch(e){CMP=[];}
+const saveCmp=()=>{try{localStorage.setItem('sg_cmp',JSON.stringify(CMP));}catch(e){}};
+const pById=id=>PD?PD.find(o=>o.p[0]===id):null;
+const shortAddr=p=>p[10]?p[10][1][0]:('Parcelle '+p[0]);
+function toggleCmp(id){const i=CMP.indexOf(id);if(i>=0)CMP.splice(i,1);else{if(CMP.length>=3)CMP.shift();CMP.push(id);}saveCmp();renderTray();if(psel)card(psel);}
+function renderTray(){
+  const t=document.getElementById('cmpTray'),c=document.getElementById('cmpChips');
+  CMP=CMP.filter(id=>!PD||pById(id));t.hidden=!CMP.length||document.getElementById('view-parcelles').hidden;c.innerHTML='';
+  CMP.forEach((id,i)=>{const o=pById(id);const el=document.createElement('span');el.className='tchip';
+    el.innerHTML=`<b>${LETTERS[i]}</b><span>${o?shortAddr(o.p):id}</span><button aria-label="Retirer de la comparaison">✕</button>`;
+    el.querySelector('span').onclick=()=>{if(o){psel=o.p;card(o.p);focusParcel(o);}};
+    el.querySelector('button').onclick=()=>toggleCmp(id);c.appendChild(el);});
+  const g=document.getElementById('cmpGo');g.disabled=CMP.length<2;g.textContent=CMP.length<2?'Ajoutez une 2e parcelle':`Comparer (${CMP.length})`;
+}
+const v1=(x,u='')=>x===null||x===undefined||x===''?'—':(typeof x==='number'?fmt.format(x):x)+(u&&x!==null&&x!==undefined&&x!==''?' '+u:'');
+function cmpRows(){
+  const q=p=>D.feats.find(f=>f.code===p[6]);const qv=(p,k)=>{const f=q(p);return f?f.v[k]:null;};
+  const b=(p,i)=>p[8]?p[8][i]:null,e=(p,i)=>p[9]?p[9][i]:null;
+  const fl=v=>v?FLDL[v]:'pas d’aléa',solR=v=>v?v.split('+').map(x=>'cat. '+x).join(' + '):'hors inventaire';
+  const solScore=v=>{if(!v)return 0;const c=v.split('+');return Math.max(...c.map(x=>({'1':1,'2':2,'3':3,'0':4,'4':5}[x]||3)));};
+  return [
+   ['Logement'],
+   ['Unités adressées (boîtes)',p=>p[10]?p[10][0]:null,null],
+   ['Bruit (classes de 5 dB)'],
+   ['Jour, côté rue',p=>p[2],'min',v=>band(v)],
+   ['Jour, côté calme',p=>p[1],'min',v=>band(v)],
+   ['Nuit, côté rue',p=>p[4],'min',v=>band(v)],
+   ['Nuit, côté calme',p=>p[3],'min',v=>band(v)],
+   ['Bâti'],
+   ['Surface de la parcelle',p=>b(p,0),null,v=>v1(v,'m²')],
+   ['Emprise bâtie',p=>b(p,3),null,v=>v1(v,'%')],
+   ['Espace non bâti',p=>b(p,2),'max',v=>v1(v,'m²')],
+   ['Largeur sur rue',p=>b(p,4),null,v=>v1(v,'m')],
+   ['Façade avant',p=>b(p,5),null,v=>v?ORIL[v]:'—'],
+   ['Jardin / cour vers',p=>b(p,6),null,v=>v?ORIL[v]:'—'],
+   ['Parcelle d’angle',p=>b(p,7),null,v=>v===null?'—':(v?'oui':'non')],
+   ['Environnement'],
+   ['Black carbon (µg/m³)',p=>e(p,4),'min',v=>v1(v)],
+   ['Inondation',p=>e(p,0),'min',fl],
+   ['État du sol',p=>e(p,2)||'',null,solR,v=>solScore(v)],
+   ['Proximité (vol d’oiseau)'],
+   ['Espace vert le plus proche',p=>e(p,7),'min',(v,p)=>`${v1(v,'m')}<br><small>${e(p,6)||''}</small>`],
+   ['Parc d’au moins 1 ha',p=>e(p,10),'min',(v,p)=>`${v1(v,'m')}<br><small>${e(p,9)||''}</small>`],
+   ['Itinéraire cyclable régional',p=>e(p,13),'min',(v,p)=>`${v1(v,'m')} <small>(ICR ${e(p,12)})</small>`],
+   ['Stationnement vélo',p=>e(p,14),'min',v=>v1(v,'m')],
+   ['Permis d’urbanisme'],
+   ['Demandes sur la parcelle',p=>e(p,16),null,v=>v1(v)],
+   ['Dernière demande',p=>{const L=PERMITS&&PERMITS[p[0]];return L&&L.length?L[0]:null;},null,v=>v?`${v.d.slice(0,4)} · ${v.s||'?'}<br><small>${v.o}</small>`:'—'],
+   ['Quartier'],
+   ['Quartier',p=>{const f=q(p);return f?f.nom:null;},null,v=>v||'—'],
+   ['Prix médian appartement (2023)',p=>qv(p,'prix_med_app_2023'),null,v=>v1(v,'€')],
+   ['Logements occupés par le propriétaire',p=>qv(p,'pct_proprio_2021'),null,v=>v1(v,'%')],
+   ['Revenu médian après impôt',p=>qv(p,'rev_equiv_med_2023'),null,v=>v1(v,'€')],
+   ['Végétalisation du quartier',p=>qv(p,'pct_vegetal_2023'),'max',v=>v1(v,'%')]
+  ];
+}
+function openCmp(){
+  const ps=CMP.map(pById).filter(Boolean).map(o=>o.p);if(ps.length<2)return;
+  let h='<thead><tr><th></th>'+ps.map((p,i)=>`<th class="colhead"><b style="color:#e0157a">${LETTERS[i]}</b> ${shortAddr(p)}<small>${p[0]}</small><button data-i="${i}">Voir sur la carte</button></th>`).join('')+'</tr></thead><tbody>';
+  for(const r of cmpRows()){
+    if(r.length===1){h+=`<tr class="grp"><td colspan="${ps.length+1}">${r[0]}</td></tr>`;continue;}
+    const [lab,get,dir,fmtf,score]=r;const vals=ps.map(get);
+    let win=new Set();
+    if(dir){const sc=vals.map((v,i)=>{const x=score?score(v):v;return x===null||x===undefined||x===''?null:+x;});const ok=sc.filter(x=>x!==null);
+      if(ok.length>=2&&new Set(ok).size>1){const t=dir==='min'?Math.min(...ok):Math.max(...ok);sc.forEach((x,i)=>{if(x===t)win.add(i);});}}
+    else if(score){const sc=vals.map(score);const t=Math.min(...sc);if(new Set(sc).size>1)sc.forEach((x,i)=>{if(x===t)win.add(i);});}
+    h+=`<tr><td class="rl">${lab}</td>`+vals.map((v,i)=>`<td class="${win.has(i)?'win':''}">${win.has(i)?'<span class="best">● </span>':''}${fmtf?fmtf(v,ps[i]):v1(v)}</td>`).join('')+'</tr>';
+  }
+  const tb=document.getElementById('cmpTable');tb.innerHTML=h+'</tbody>';
+  tb.querySelectorAll('.colhead button').forEach(bt=>bt.onclick=()=>{const o=pById(ps[+bt.dataset.i][0]);closeCmp();if(o){psel=o.p;card(o.p);focusParcel(o);document.getElementById('t-pmap').scrollIntoView({behavior:'smooth'});}});
+  document.getElementById('cmpOverlay').hidden=false;document.body.style.overflow='hidden';document.getElementById('cmpClose').focus();
+}
+function closeCmp(){document.getElementById('cmpOverlay').hidden=true;document.body.style.overflow='';}
+document.getElementById('cmpGo').onclick=openCmp;document.getElementById('cmpClose').onclick=closeCmp;
+document.getElementById('cmpOverlay').onclick=e=>{if(e.target.id==='cmpOverlay')closeCmp();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCmp();});
+window.addEventListener('hashchange',renderTray);
+
+/* ===== Address search ===== */
+let AIDX=null;const norm=t=>t.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+fetch('adresses_index.json').then(r=>r.json()).then(d=>{AIDX=d;AIDX.sn=d.s.map(x=>[norm(x[0]),norm(x[1])]);}).catch(()=>{});
+const qi=document.getElementById('q'),qr=document.getElementById('qres');let qsel=-1,qhits=[];
+function qsearch(){
+  const v=norm(qi.value);qr.innerHTML='';qhits=[];qsel=-1;
+  if(!AIDX||v.length<2){qr.hidden=true;return;}
+  const toks=v.split(' ');const nums=toks.filter(t=>/^\d/.test(t));const words=toks.filter(t=>!/^\d/.test(t));
+  const okS=AIDX.sn.map(([fr,nl])=>words.every(w=>fr.includes(w)||nl.includes(w)));
+  for(const e of AIDX.a){if(!okS[e[0]])continue;const n=norm(e[1]||'');if(nums.length&&!nums.some(x=>n===x||(nums.length===1&&n.startsWith(x))))continue;qhits.push(e);if(qhits.length>=40)break;}
+  if(!qhits.length){qr.innerHTML='<li aria-disabled="true"><small>Aucune adresse trouvée à Saint-Gilles</small></li>';qr.hidden=false;return;}
+  qhits.forEach((e,i)=>{const li=document.createElement('li');li.role='option';li.innerHTML=`${AIDX.s[e[0]][0]} ${e[1]} <small>· ${AIDX.s[e[0]][1]}</small>`;li.onmousedown=ev=>{ev.preventDefault();goAddr(e);};qr.appendChild(li);});
+  qr.hidden=false;
+}
+function focusParcel(o){const b=o.bb,cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;view.s=Math.min(pc.width,pc.height)/Math.max(0.0012,(b[2]-b[0])*14,(b[3]-b[1])*14);
+  view.tx=pc.width/2-cx*view.s;view.ty=pc.height/2-cy*view.s;draw();}
+document.getElementById('zsel').onclick=()=>{if(!psel||!PD)return;const o=PD.find(o=>o.p===psel);if(o)focusParcel(o);};
+function goAddr(e){
+  qr.hidden=true;qi.value=`${AIDX.s[e[0]][0]} ${e[1]}`;qi.blur();
+  if(!PD)return;let o=PD.find(o=>o.p[0]===e[2]);
+  if(!o){const X=e[3]*kx,Y=-e[4];o=PD.find(o=>X>=o.bb[0]&&X<=o.bb[2]&&Y>=o.bb[1]&&Y<=o.bb[3]);}
+  if(!o)return;
+  psel=o.p;card(o.p);focusParcel(o);
+  const t=window.matchMedia('(max-width:820px)').matches?'t-pcard':'t-pmap';document.getElementById(t).scrollIntoView({behavior:'smooth',block:'start'});
+}
+qi.addEventListener('input',qsearch);
+qi.addEventListener('keydown',ev=>{const it=[...qr.querySelectorAll('li[role=option]')];
+  if(ev.key==='ArrowDown'){qsel=Math.min(it.length-1,qsel+1);}else if(ev.key==='ArrowUp'){qsel=Math.max(0,qsel-1);}
+  else if(ev.key==='Enter'){ev.preventDefault();if(qhits.length)goAddr(qhits[Math.max(0,qsel)]);return;}else if(ev.key==='Escape'){qr.hidden=true;return;}else return;
+  ev.preventDefault();it.forEach((l,i)=>l.setAttribute('aria-selected',i===qsel));});
+qi.addEventListener('blur',()=>setTimeout(()=>qr.hidden=true,150));
+document.getElementById('tomap').onclick=()=>document.getElementById('t-pmap').scrollIntoView({behavior:'smooth',block:'start'});
+
+</script>
+</body>
+</html>
