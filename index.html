@@ -145,6 +145,15 @@ svg{width:100%;height:auto;display:block}
 #pmap{width:100%;height:520px;display:block;cursor:grab}
 @media (max-width:820px){#pmap{height:420px}}
 .zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px}
+.zoom button[aria-pressed="true"]{background:#e0157a;color:#fff;border-color:#e0157a}
+.drawhint{position:absolute;left:8px;top:8px;right:52px;background:rgba(224,21,122,.95);color:#fff;font-size:13px;padding:6px 10px;border-radius:8px}
+.drawhint[hidden]{display:none}
+.zgrid{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 12px;font-size:14px;margin:6px 0;font-variant-numeric:tabular-nums}
+.zgrid .hd{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.zgrid span:nth-child(3n+2){font-weight:600;text-align:right}
+.zgrid span:nth-child(3n){color:var(--muted);text-align:right}
+.bars{display:flex;height:14px;border-radius:4px;overflow:hidden;margin:4px 0 2px}
+.bars i{display:block;height:100%}
 .zoom button:disabled{opacity:.4;cursor:default}
 .zoom button{width:34px;height:34px;padding:0;background:var(--surface);font-size:18px;line-height:1}
 .loading{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:var(--muted)}
@@ -186,11 +195,12 @@ svg{width:100%;height:auto;display:block}
         <p class="meta" id="m-pmap"></p>
         <div class="mapbox">
           <canvas id="pmap" aria-label="Carte des parcelles de Saint-Gilles"></canvas>
-          <div class="zoom"><button id="zin" aria-label="Zoomer">+</button><button id="zout" aria-label="Dézoomer">−</button><button id="zsel" aria-label="Centrer sur la parcelle sélectionnée" title="Centrer sur la parcelle sélectionnée" disabled>◎</button><button id="zreset" aria-label="Vue de toute la commune" title="Vue de toute la commune">⟲</button></div>
+          <div class="zoom"><button id="zin" aria-label="Zoomer">+</button><button id="zout" aria-label="Dézoomer">−</button><button id="zdraw" aria-label="Dessiner une zone" title="Dessiner une zone pour en résumer les parcelles" aria-pressed="false">✎</button><button id="zsel" aria-label="Centrer sur la parcelle sélectionnée" title="Centrer sur la parcelle sélectionnée" disabled>◎</button><button id="zreset" aria-label="Vue de toute la commune" title="Vue de toute la commune">⟲</button></div>
+          <p class="drawhint" id="drawhint" hidden>Dessinez le contour de la zone en maintenant le clic (ou le doigt) appuyé, puis relâchez. Échap pour annuler.</p>
           <p class="loading" id="ploading">Chargement des 7 700 parcelles…</p>
         </div>
         <div class="legend" id="plegend"></div>
-        <p class="note">Glissez pour déplacer, molette ou pincement pour zoomer, touchez une parcelle pour sa fiche.</p>
+        <p class="note">Glissez pour déplacer, molette ou pincement pour zoomer, touchez une parcelle pour sa fiche. ✎ : dessinez une zone pour résumer ses parcelles.</p>
       </section>
       <section class="card" aria-live="polite">
         <h2 id="t-pcard">Fiche parcelle</h2>
@@ -465,7 +475,8 @@ function initParcels(){
   fetch('parcelles.json').then(r=>r.json()).then(d=>{
     PD=d.map(p=>{const rings=p[7];let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;
       rings.forEach(r=>{for(let i=0;i<r.length;i+=2){const x=r[i]*kx,y=-r[i+1];if(x<mnx)mnx=x;if(x>mxx)mxx=x;if(y<mny)mny=y;if(y>mxy)mxy=y;}});
-      return {p,bb:[mnx,mny,mxx,mxy]};});
+      let cx=0,cy=0,cn=0;const r0=rings[0];for(let i=0;i<r0.length;i+=2){cx+=r0[i]*kx;cy+=-r0[i+1];cn++;}
+      return {p,bb:[mnx,mny,mxx,mxy],c:[cx/cn,cy/cn]};});
     let a=1e9,b=1e9,c=-1e9,e=-1e9;PD.forEach(o=>{a=Math.min(a,o.bb[0]);b=Math.min(b,o.bb[1]);c=Math.max(c,o.bb[2]);e=Math.max(e,o.bb[3]);});
     base={x0:a,y0:b,w:c-a,h:e-b};
     document.getElementById('ploading').remove();setTimeout(renderTray,0);
@@ -494,7 +505,7 @@ function draw(){
     const b=o.bb;if(b[2]*s+tx<0||b[0]*s+tx>W||b[3]*s+ty<0||b[1]*s+ty>H)continue;
     const p=o.p;const L=PL.find(x=>x.id===pk);let col=L.col(L.v(p));
     if(!col)col=css('--nodata');
-    ctx.globalAlpha=calmOnly&&!isCalm(p)?0.12:1;
+    ctx.globalAlpha=(calmOnly&&!isCalm(p))||(zoneSet&&!zoneSet.has(p))?0.15:1;
     ctx.beginPath();
     for(const r of p[7]){for(let i=0;i<r.length;i+=2){const x=r[i]*kx*s+tx,y=-r[i+1]*s+ty;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.closePath();}
     ctx.fillStyle=col;ctx.fill('evenodd');ctx.stroke();
@@ -515,6 +526,7 @@ function draw(){
     ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.lineWidth=6*dpr;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();
     ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.lineWidth=3*dpr;ctx.strokeStyle='#e0157a';ctx.stroke();
   }
+  const poly=lasso||zone;if(poly&&poly.length>1){ctx.save();ctx.beginPath();poly.forEach(([x,y],i)=>{const X=x*s+tx,Y=y*s+ty;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});if(!lasso)ctx.closePath();ctx.lineWidth=5*dpr;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();ctx.lineWidth=2.5*dpr;ctx.setLineDash(lasso?[6*dpr,4*dpr]:[]);ctx.strokeStyle='#e0157a';ctx.stroke();ctx.restore();}
   drawStreets();
 }
 
@@ -536,6 +548,84 @@ function drawStreets(){
     ctx.translate(x,y);ctx.rotate(r);ctx.strokeText(n,0,0);ctx.fillText(n,0,0);ctx.setTransform(1,0,0,1,0,0);
   }
   ctx.restore();
+}
+
+/* ===== Lasso zone ===== */
+let drawMode=false,lasso=null,zone=null,zoneSet=null;
+const toMap=p=>[(p[0]-view.tx)/view.s,(p[1]-view.ty)/view.s];
+function setDraw(on){drawMode=on;document.getElementById('zdraw').setAttribute('aria-pressed',on);document.getElementById('drawhint').hidden=!on;pc.style.cursor=on?'crosshair':'grab';if(!on)lasso=null;draw();}
+document.getElementById('zdraw').onclick=()=>setDraw(!drawMode);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&drawMode)setDraw(false);});
+function inPoly(x,y,P){let ins=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const [xi,yi]=P[i],[xj,yj]=P[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)ins=!ins;}return ins;}
+function finishLasso(){
+  const L=lasso;setDraw(false);if(!L||L.length<4||!PD)return;
+  const sel=PD.filter(o=>inPoly(o.c[0],o.c[1],L));if(!sel.length){draw();return;}
+  zone=L;zoneSet=new Set(sel.map(o=>o.p));psel=null;draw();zoneCard(sel.map(o=>o.p));
+  if(window.matchMedia('(max-width:820px)').matches)document.getElementById('t-pcard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function clearZone(){zone=null;zoneSet=null;document.getElementById('pcard').innerHTML='<p class="meta">Touchez une parcelle sur la carte.</p>';document.getElementById('t-pcard').firstChild.textContent='Fiche parcelle';draw();}
+const mid=v=>v===null||v===undefined?null:(v===0?37.5:v+2.5);
+function zstats(ps){
+  const num=a=>a.filter(v=>v!==null&&v!==undefined&&v!==''&&!isNaN(v)).map(Number);
+  const mean=a=>{a=num(a);return a.length?a.reduce((x,y)=>x+y,0)/a.length:null;};
+  const med=a=>{a=num(a).sort((x,y)=>x-y);return a.length?a[Math.floor(a.length/2)]:null;};
+  const share=(a,f)=>{const v=a.filter(x=>x!==null&&x!==undefined);return v.length?100*v.filter(f).length/v.length:null;};
+  const b=i=>ps.map(p=>p[8]?p[8][i]:null),e=i=>ps.map(p=>p[9]?p[9][i]:null);
+  const surf=num(b(0)).reduce((x,y)=>x+y,0),bati=num(b(1)).reduce((x,y)=>x+y,0),libre=num(b(2)).reduce((x,y)=>x+y,0);
+  const now=new Date().getFullYear();let perm=0,perm5=0,div=0;
+  if(PERMITS)ps.forEach(p=>{(PERMITS[p[0]]||[]).forEach(r=>{perm++;const y=+String(r.d).slice(0,4);if(y>=now-5)perm5++;if(r.hp&&r.he&&r.hp>r.he*1.05)div++;});});
+  const ori={};b(6).forEach(v=>{if(v)ori[v]=(ori[v]||0)+1;});
+  const sol={};e(2).forEach(v=>{if(v){const k=v.includes('0')?'0':v.split('+').pop();sol[k]=(sol[k]||0)+1;}});
+  return {n:ps.length,surf,bati,libre,emp:surf?100*bati/surf:null,
+    units:num(ps.map(p=>p[10]?p[10][0]:null)).reduce((x,y)=>x+y,0),
+    ldenMax:mean(ps.map(p=>mid(p[2]))),ldenMin:mean(ps.map(p=>mid(p[1]))),lnMax:mean(ps.map(p=>mid(p[4]))),
+    loud:share(ps.map(p=>p[2]),v=>v>=65),calm:share(ps.map(p=>p[1]===null?null:p),p=>isCalm(p)),
+    bc:mean(e(4)),flood:e(0).filter(v=>v>0).length,sol,inv:e(2).filter(v=>v).length,
+    vert:med(e(7)),parc:med(e(10)),icr:med(e(13)),velo:med(e(14)),
+    libreMed:med(b(2)),libreShare:share(b(2),v=>v>=15),ori,angle:b(7).filter(v=>v===1).length,
+    perm,perm5,div,permParc:ps.filter(p=>PERMITS&&(PERMITS[p[0]]||[]).length).length,
+    quart:[...new Set(ps.map(p=>p[6]))].map(c=>{const f=D.feats.find(x=>x.code===c);return f?f.nom:null;}).filter(Boolean)};
+}
+let SGSTATS=null;
+function zoneCard(ps){
+  if(!SGSTATS)SGSTATS=zstats(PD.map(o=>o.p));const Z=zstats(ps),S=SGSTATS;
+  const f0=v=>v===null?'—':fmt0.format(v),f1=v=>v===null?'—':fmt.format(Math.round(v*10)/10),pc_=v=>v===null?'—':fmt0.format(v)+' %';
+  const dB=v=>v===null?'—':fmt.format(Math.round(v*10)/10)+' dB';
+  const row=(l,a,b)=>`<span>${l}</span><span>${a}</span><span>${b}</span>`;
+  document.getElementById('t-pcard').firstChild.textContent='Zone dessinée';
+  let h=`<div class="phead"><p class="addr">${Z.n} parcelles sélectionnées</p><p class="capa">${Z.quart.join(' · ')}</p></div>
+  <button class="cmpBtn" onclick="clearZone()">Effacer la zone</button>
+  <p class="meta">Moyennes (médianes pour les distances) des parcelles dont le centre est dans le contour, comparées à l’ensemble de Saint-Gilles. Pour le bruit, la moyenne utilise le milieu de chaque classe de 5 dB.</p>
+  <h3>Logement et bâti</h3><div class="zgrid"><span class="hd"></span><span class="hd">Zone</span><span class="hd">Saint-Gilles</span>
+  ${row('Unités adressées (boîtes)',f0(Z.units),f0(S.units))}
+  ${row('Surface totale des parcelles',f0(Z.surf)+' m²',f0(S.surf)+' m²')}
+  ${row('Emprise bâtie',pc_(Z.emp),pc_(S.emp))}
+  ${row('Parcelles avec ≥ 15 m² non bâtis',pc_(Z.libreShare),pc_(S.libreShare))}
+  ${row('Espace non bâti médian',f0(Z.libreMed)+' m²',f0(S.libreMed)+' m²')}
+  ${row('Parcelles d’angle',f0(Z.angle),f0(S.angle))}</div>`;
+  const oriTot=Object.values(Z.ori).reduce((x,y)=>x+y,0);
+  if(oriTot){h+=`<p class="meta">Orientation des jardins (${oriTot} parcelles)</p><div class="bars">${ORI.map(o=>Z.ori[o]?`<i title="${ORIL[o]} : ${Z.ori[o]}" style="width:${100*Z.ori[o]/oriTot}%;background:${ORIC[o]}"></i>`:'').join('')}</div><p class="meta">${ORI.filter(o=>Z.ori[o]).map(o=>`${ORIL[o]} ${Math.round(100*Z.ori[o]/oriTot)} %`).join(' · ')}</p>`;}
+  h+=`<h3>Bruit et environnement</h3><div class="zgrid"><span class="hd"></span><span class="hd">Zone</span><span class="hd">Saint-Gilles</span>
+  ${row('Bruit jour côté rue (moyenne)',dB(Z.ldenMax),dB(S.ldenMax))}
+  ${row('Bruit jour côté calme (moyenne)',dB(Z.ldenMin),dB(S.ldenMin))}
+  ${row('Bruit nuit côté rue (moyenne)',dB(Z.lnMax),dB(S.lnMax))}
+  ${row('Parcelles à 65 dB ou plus côté rue',pc_(Z.loud),pc_(S.loud))}
+  ${row('Parcelles avec un côté calme',pc_(Z.calm),pc_(S.calm))}
+  ${row('Black carbon moyen',f1(Z.bc)+' µg/m³',f1(S.bc)+' µg/m³')}
+  ${row('Parcelles en zone inondable',f0(Z.flood),f0(S.flood))}
+  ${row('Parcelles à l’inventaire du sol',f0(Z.inv),f0(S.inv))}</div>`;
+  if(Z.inv)h+=`<p class="meta">Sol : ${Object.entries(Z.sol).sort().map(([k,v])=>`cat. ${k}${k==='0'?' (ou 0+x)':''} : ${v}`).join(' · ')}</p>`;
+  h+=`<h3>Proximité (médianes, à vol d’oiseau)</h3><div class="zgrid"><span class="hd"></span><span class="hd">Zone</span><span class="hd">Saint-Gilles</span>
+  ${row('Espace vert le plus proche',f0(Z.vert)+' m',f0(S.vert)+' m')}
+  ${row('Parc d’au moins 1 ha',f0(Z.parc)+' m',f0(S.parc)+' m')}
+  ${row('Itinéraire cyclable régional',f0(Z.icr)+' m',f0(S.icr)+' m')}
+  ${row('Stationnement vélo',f0(Z.velo)+' m',f0(S.velo)+' m')}</div>
+  <h3>Permis d’urbanisme</h3><div class="zgrid"><span class="hd"></span><span class="hd">Zone</span><span class="hd">Saint-Gilles</span>
+  ${row('Demandes (toutes années)',f0(Z.perm),f0(S.perm))}
+  ${row('Demandes sur les 5 dernières années',f0(Z.perm5),f0(S.perm5))}
+  ${row('Parcelles ayant eu au moins une demande',pc_(Z.n?100*Z.permParc/Z.n:null),pc_(S.n?100*S.permParc/S.n:null))}
+  ${row('Demandes augmentant la surface de logement',f0(Z.div),f0(S.div))}</div>`;
+  document.getElementById('pcard').innerHTML=h;
 }
 function hit(cx,cy){
   const {s,tx,ty}=view;const X=(cx-tx)/s,Y=(cy-ty)/s;
@@ -592,13 +682,13 @@ function card(p){document.getElementById('zsel').disabled=false;
 const ptr=new Map();let moved=false,last=null,pinch=null;
 function zoomAt(f,cx,cy){view.tx=cx-(cx-view.tx)*f;view.ty=cy-(cy-view.ty)*f;view.s*=f;draw();}
 const loc=e=>{const r=pc.getBoundingClientRect();return [(e.clientX-r.left)*dpr,(e.clientY-r.top)*dpr];};
-pc.addEventListener('pointerdown',e=>{pc.setPointerCapture(e.pointerId);ptr.set(e.pointerId,loc(e));moved=false;last=loc(e);
+pc.addEventListener('pointerdown',e=>{if(drawMode){pc.setPointerCapture(e.pointerId);lasso=[toMap(loc(e))];draw();return;}pc.setPointerCapture(e.pointerId);ptr.set(e.pointerId,loc(e));moved=false;last=loc(e);
   if(ptr.size===2){const [a,b]=[...ptr.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1])};}});
-pc.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;const p=loc(e);ptr.set(e.pointerId,p);
+pc.addEventListener('pointermove',e=>{if(drawMode){if(lasso){const m=toMap(loc(e));const l=lasso[lasso.length-1];if(Math.hypot((m[0]-l[0])*view.s,(m[1]-l[1])*view.s)>4*dpr){lasso.push(m);draw();}}return;}if(!ptr.has(e.pointerId))return;const p=loc(e);ptr.set(e.pointerId,p);
   if(ptr.size===2&&pinch){const [a,b]=[...ptr.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);zoomAt(d/pinch.d,(a[0]+b[0])/2,(a[1]+b[1])/2);pinch.d=d;moved=true;return;}
   if(ptr.size===1){const dx=p[0]-last[0],dy=p[1]-last[1];if(Math.abs(dx)+Math.abs(dy)>3*dpr)moved=true;if(moved){view.tx+=dx;view.ty+=dy;draw();}last=p;}});
-pc.addEventListener('pointerup',e=>{const p=loc(e);ptr.delete(e.pointerId);if(ptr.size<2)pinch=null;
-  if(!moved&&PD){const h=hit(p[0],p[1]);if(h){psel=h;card(h);draw();if(window.matchMedia('(max-width:820px)').matches)document.getElementById('t-pcard').scrollIntoView({behavior:'smooth',block:'start'});}}});
+pc.addEventListener('pointerup',e=>{if(drawMode){finishLasso();return;}const p=loc(e);ptr.delete(e.pointerId);if(ptr.size<2)pinch=null;
+  if(!moved&&PD){const h=hit(p[0],p[1]);if(h){if(zone){zone=null;zoneSet=null;document.getElementById('t-pcard').firstChild.textContent='Fiche parcelle';}psel=h;card(h);draw();if(window.matchMedia('(max-width:820px)').matches)document.getElementById('t-pcard').scrollIntoView({behavior:'smooth',block:'start'});}}});
 pc.addEventListener('pointercancel',e=>{ptr.delete(e.pointerId);pinch=null;});
 pc.addEventListener('wheel',e=>{e.preventDefault();const p=loc(e);zoomAt(e.deltaY<0?1.25:0.8,p[0],p[1]);},{passive:false});
 document.getElementById('zin').onclick=()=>zoomAt(1.5,pc.width/2,pc.height/2);
